@@ -143,6 +143,29 @@ def _parse_operand_specs(spec_text: str) -> list[dict]:
                 }
             )
             continue
+        if kind == "view":
+            shape = raw.get("shape")
+            if not isinstance(shape, list) or not shape:
+                raise ValueError(f"operand-specs[{index}] view shape must be a non-empty list")
+            memory_space = _MEMSPACE_MAP.get(raw.get("memory_space", "gm"))
+            if memory_space is None:
+                raise ValueError(
+                    f"operand-specs[{index}] has unknown memory-space {raw.get('memory_space')!r}"
+                )
+            view_spec: dict = {
+                "kind": "view",
+                "dtype": dtype,
+                "shape": tuple(int(dim) for dim in shape),
+                "memory_space": memory_space,
+            }
+            raw_strides = raw.get("strides")
+            if isinstance(raw_strides, list) and raw_strides:
+                # null entries represent dynamic strides — keep as None.
+                view_spec["strides"] = tuple(
+                    None if s is None else int(s) for s in raw_strides
+                )
+            specs.append(view_spec)
+            continue
         raise ValueError(f"operand-specs[{index}] has unknown kind {kind!r}")
     return specs
 
@@ -222,7 +245,12 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     # Specialize Tile parameters positionally from operand-specs.
+    # View operands match tensorview/partition_tensor_view parameters without
+    # specialization — shape/strides are resolved dynamically via intrinsics.
+    # However, their shape/strides are injected into the constraint context so
+    # that precondition checks (e.g. src.strides[4] == 1) can evaluate.
     tile_specs = {}
+    view_context_attrs: dict[str, object] = {}
     for param, operand_spec in zip(desc.parameters, operand_specs):
         if param.kind == "tile":
             if operand_spec["kind"] != "tile":
@@ -236,12 +264,31 @@ def main(argv: list[str] | None = None) -> int:
                 memory_space=operand_spec["memory_space"],
             )
             continue
+        if param.kind in ("tensorview", "partition_tensor_view"):
+            if operand_spec["kind"] != "view":
+                print(
+                    f"expand_helper: error: descriptor {param.kind} parameter "
+                    f"does not match operand-specs kind {operand_spec['kind']!r}",
+                    file=sys.stderr,
+                )
+                return 1
+            # Inject shape/strides for constraint evaluation.
+            view_context_attrs[f"{param.name}_shape"] = operand_spec["shape"]
+            if "strides" in operand_spec:
+                view_context_attrs[f"{param.name}_strides"] = operand_spec["strides"]
+            continue
         if param.kind == "scalar" and operand_spec["kind"] != "scalar":
             print(
                 "expand_helper: error: descriptor scalar parameter does not match operand-specs",
                 file=sys.stderr,
             )
             return 1
+
+    # Bind view context attrs so constraint checking has access to shape/strides.
+    if view_context_attrs:
+        desc = desc._bind_constraint_context_attrs(
+            {**desc.constraint_context_attrs, **view_context_attrs}
+        )
 
     specialized = desc.specialize(**tile_specs)
 

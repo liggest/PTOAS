@@ -72,28 +72,48 @@ namespace pto {
 namespace {
 
 // ============================================================================
-// OperandTypeInfo: captures the tile_buf type info for one operand.
+// OperandTypeInfo: describes one operand for template specialization.
+//
+// Three kinds of operands:
+//   Tile   — from TileBufType.  dtype + shape + memorySpace + config
+//            all participate in the specialization key (SpecKey).
+//   View   — from MemRefType (lowered PartitionTensorViewType).  Only dtype
+//            participates in SpecKey — the template is fully dynamic so
+//            shape/strides/memorySpace don't affect code generation.  They
+//            are carried here solely for JSON serialization to the Python
+//            DSL for constraint checking.
+//   Scalar — from a scalar element type.  Only dtype participates in SpecKey.
 // ============================================================================
-enum class OperandKind {
-  Tile,
-  Scalar,
-};
+enum class OperandKind { Tile, View, Scalar };
 
 struct OperandTypeInfo {
   OperandKind kind = OperandKind::Tile;
-  std::string dtype;
-  SmallVector<int64_t, 2> shape;
+  std::string dtype; // all kinds: element type string (e.g. "f32")
+
+  // --- Tile-only (TileBufType) ---
+  SmallVector<int64_t, 2> tileShape;
+  std::string tileMemorySpace; // "ub" or "gm"
   int32_t blayout = 0;
   int32_t slayout = 0;
   int32_t fractal = 0;
   int32_t pad = 0;
-  std::string memorySpace;
 
+  // --- View-only (MemRefType) — for JSON / constraint checking only ---
+  SmallVector<int64_t> viewShape;
+  SmallVector<int64_t> viewStrides;
+  std::string viewMemorySpace; // "gm" or "ub"
+
+  /// Equality for SpecKey caching — only compares fields relevant to each kind.
   bool operator==(const OperandTypeInfo &rhs) const {
-    return kind == rhs.kind && dtype == rhs.dtype && shape == rhs.shape &&
-           blayout == rhs.blayout && slayout == rhs.slayout &&
-           fractal == rhs.fractal && pad == rhs.pad &&
-           memorySpace == rhs.memorySpace;
+    if (kind != rhs.kind || dtype != rhs.dtype)
+      return false;
+    if (kind == OperandKind::Tile)
+      return tileShape == rhs.tileShape &&
+             tileMemorySpace == rhs.tileMemorySpace &&
+             blayout == rhs.blayout && slayout == rhs.slayout &&
+             fractal == rhs.fractal && pad == rhs.pad;
+    // View and Scalar: dtype alone is sufficient for template caching.
+    return true;
   }
 };
 
@@ -115,12 +135,14 @@ struct SpecKeyInfo : public llvm::DenseMapInfo<SpecKey> {
   static unsigned getHashValue(const SpecKey &key) {
     unsigned h = llvm::hash_value(key.opName);
     for (const auto &op : key.operands) {
-      h = llvm::hash_combine(h, static_cast<int>(op.kind), op.dtype,
-                              op.blayout, op.slayout,
-                              op.fractal, op.pad);
-      h = llvm::hash_combine(h, op.memorySpace);
-      for (int64_t d : op.shape)
-        h = llvm::hash_combine(h, d);
+      h = llvm::hash_combine(h, static_cast<int>(op.kind), op.dtype);
+      if (op.kind == OperandKind::Tile) {
+        h = llvm::hash_combine(h, op.tileMemorySpace, op.blayout,
+                                op.slayout, op.fractal, op.pad);
+        for (int64_t d : op.tileShape)
+          h = llvm::hash_combine(h, d);
+      }
+      // View/Scalar: only kind + dtype contribute to hash.
     }
     return h;
   }
@@ -155,30 +177,51 @@ static std::string getMemorySpaceString(pto::TileBufType tbTy) {
   return "ub";
 }
 
-static std::optional<OperandTypeInfo>
-buildOperandTypeInfo(pto::TileBufType tbTy) {
-  OperandTypeInfo info;
-  info.kind = OperandKind::Tile;
-  info.dtype = getDtypeString(tbTy.getElementType());
-  if (info.dtype.empty())
-    return std::nullopt;
-  info.shape.assign(tbTy.getShape().begin(), tbTy.getShape().end());
-  info.memorySpace = getMemorySpaceString(tbTy);
-  if (auto config = tbTy.getConfigAttr()) {
-    info.blayout = static_cast<int32_t>(config.getBLayout().getValue());
-    info.slayout = static_cast<int32_t>(config.getSLayout().getValue());
-    info.fractal = config.getSFractalSize()
-                       ? static_cast<int32_t>(config.getSFractalSize().getInt())
-                       : 0;
-    info.pad = static_cast<int32_t>(config.getPad().getValue());
-  }
-  return info;
+static std::string getMemorySpaceString(MemRefType mrTy) {
+  auto msAttr = dyn_cast_or_null<pto::AddressSpaceAttr>(mrTy.getMemorySpace());
+  if (!msAttr) return "gm";
+  if (msAttr.getAddressSpace() == pto::AddressSpace::GM) return "gm";
+  return "ub";
 }
 
 static std::optional<OperandTypeInfo> buildOperandTypeInfo(Type ty) {
-  if (auto tbTy = dyn_cast<pto::TileBufType>(ty))
-    return buildOperandTypeInfo(tbTy);
+  // Tile operand — from TileBufType.
+  if (auto tbTy = dyn_cast<pto::TileBufType>(ty)) {
+    OperandTypeInfo info;
+    info.kind = OperandKind::Tile;
+    info.dtype = getDtypeString(tbTy.getElementType());
+    if (info.dtype.empty())
+      return std::nullopt;
+    info.tileShape.assign(tbTy.getShape().begin(), tbTy.getShape().end());
+    info.tileMemorySpace = getMemorySpaceString(tbTy);
+    if (auto config = tbTy.getConfigAttr()) {
+      info.blayout = static_cast<int32_t>(config.getBLayout().getValue());
+      info.slayout = static_cast<int32_t>(config.getSLayout().getValue());
+      info.fractal = config.getSFractalSize()
+                         ? static_cast<int32_t>(config.getSFractalSize().getInt())
+                         : 0;
+      info.pad = static_cast<int32_t>(config.getPad().getValue());
+    }
+    return info;
+  }
 
+  // View operand — from MemRefType (lowered PartitionTensorViewType).
+  if (auto mrTy = dyn_cast<MemRefType>(ty)) {
+    OperandTypeInfo info;
+    info.kind = OperandKind::View;
+    info.dtype = getDtypeString(mrTy.getElementType());
+    if (info.dtype.empty())
+      return std::nullopt;
+    info.viewShape.assign(mrTy.getShape().begin(), mrTy.getShape().end());
+    info.viewMemorySpace = getMemorySpaceString(mrTy);
+    int64_t offset = ShapedType::kDynamic;
+    if (succeeded(getStridesAndOffset(mrTy, info.viewStrides, offset))) {
+      // strides populated — dynamic dims remain ShapedType::kDynamic.
+    }
+    return info;
+  }
+
+  // Scalar operand — from a scalar element type.
   OperandTypeInfo info;
   info.kind = OperandKind::Scalar;
   info.dtype = getDtypeString(ty);
@@ -231,29 +274,52 @@ struct ExpandTileOpPass
   void runOnOperation() override;
 };
 
+/// Serialize a JSON array of integers.
+static void appendJsonIntArray(std::string &json, ArrayRef<int64_t> arr) {
+  json += "[";
+  for (size_t i = 0; i < arr.size(); ++i) {
+    if (i > 0)
+      json += ",";
+    json += std::to_string(arr[i]);
+  }
+  json += "]";
+}
+
 static std::string buildOperandSpecsJson(const SpecKey &key) {
   std::string json = "[";
   for (size_t i = 0; i < key.operands.size(); ++i) {
     const auto &op = key.operands[i];
     if (i > 0)
       json += ",";
+
     if (op.kind == OperandKind::Tile) {
-      json += "{\"kind\":\"tile\",\"dtype\":\"";
-      json += op.dtype;
-      json += "\",\"shape\":[";
-      for (size_t dim = 0; dim < op.shape.size(); ++dim) {
-        if (dim > 0)
-          json += ",";
-        json += std::to_string(op.shape[dim]);
-      }
-      json += "],\"memory_space\":\"";
-      json += op.memorySpace;
-      json += "\"}";
+      json += "{\"kind\":\"tile\",\"dtype\":\"" + op.dtype + "\",\"shape\":";
+      appendJsonIntArray(json, op.tileShape);
+      json += ",\"memory_space\":\"" + op.tileMemorySpace + "\"}";
       continue;
     }
-    json += "{\"kind\":\"scalar\",\"dtype\":\"";
-    json += op.dtype;
-    json += "\"}";
+
+    if (op.kind == OperandKind::View) {
+      json += "{\"kind\":\"view\",\"dtype\":\"" + op.dtype + "\",\"shape\":";
+      appendJsonIntArray(json, op.viewShape);
+      if (!op.viewStrides.empty()) {
+        json += ",\"strides\":[";
+        for (size_t dim = 0; dim < op.viewStrides.size(); ++dim) {
+          if (dim > 0)
+            json += ",";
+          if (ShapedType::isDynamic(op.viewStrides[dim]))
+            json += "null";
+          else
+            json += std::to_string(op.viewStrides[dim]);
+        }
+        json += "]";
+      }
+      json += ",\"memory_space\":\"" + op.viewMemorySpace + "\"}";
+      continue;
+    }
+
+    // Scalar
+    json += "{\"kind\":\"scalar\",\"dtype\":\"" + op.dtype + "\"}";
   }
   json += "]";
   return json;
@@ -394,13 +460,17 @@ func::FuncOp ExpandState::invokeTilelangDSL(const SpecKey &key,
   SmallVector<func::FuncOp, 4> clonedFuncs;
   llvm::StringMap<std::string> renamedSymbols;
 
-  // Build a unique base name from all operand types.
+  // Build a unique name from the spec-key-relevant operand fields.
   std::string uniqueName = "__pto_tilelang_" + key.opName;
   for (const auto &op : key.operands) {
-    uniqueName += op.kind == OperandKind::Tile ? "_tile" : "_scalar";
+    uniqueName += op.kind == OperandKind::Tile   ? "_tile"
+                 : op.kind == OperandKind::View ? "_view"
+                                                : "_scalar";
     uniqueName += "_" + op.dtype;
-    for (int64_t d : op.shape)
-      uniqueName += "_" + std::to_string(d);
+    if (op.kind == OperandKind::Tile) {
+      for (int64_t d : op.tileShape)
+        uniqueName += "_" + std::to_string(d);
+    }
   }
 
   for (auto [index, fn] : llvm::enumerate(parsedFuncs)) {
@@ -478,9 +548,21 @@ LogicalResult ExpandState::expandTileOpsInFunction(func::FuncOp func,
       return failure();
     }
 
-    // Replace tile op with func.call, passing tile_buf operands directly.
+    // Replace tile op with func.call.  For view operands whose caller type
+    // (memref) differs from the template parameter type (tensor_view /
+    // partition_tensor_view), insert an unrealized_conversion_cast bridge.
+    // FoldTileBufIntrinsics will later resolve these casts.
     builder.setInsertionPoint(op);
-    SmallVector<Value> operands(op->getOperands());
+    SmallVector<Value> operands;
+    auto fnArgTypes = dslFn.getArgumentTypes();
+    for (unsigned i = 0; i < op->getNumOperands(); ++i) {
+      Value operand = op->getOperand(i);
+      if (i < fnArgTypes.size() && operand.getType() != fnArgTypes[i]) {
+        operand = builder.create<UnrealizedConversionCastOp>(
+            op->getLoc(), fnArgTypes[i], operand).getResult(0);
+      }
+      operands.push_back(operand);
+    }
     builder.create<func::CallOp>(op->getLoc(), dslFn, operands);
     op->erase();
   }

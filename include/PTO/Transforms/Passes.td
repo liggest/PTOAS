@@ -326,18 +326,30 @@ def ExpandTileOp : Pass<"pto-expand-tile-op", "ModuleOp"> {
 }
 
 def FoldTileBufIntrinsics : Pass<"pto-fold-tile-buf-intrinsics", "mlir::func::FuncOp"> {
-  let summary = "Fold tile_buf_addr / tile_valid_rows / tile_valid_cols";
+  let summary = "Fold structured-view intrinsics after template inlining";
   let description = [{
     After TileLang DSL template functions are inlined, the IR contains
-    pto.tile_buf_addr, pto.tile_valid_rows, and pto.tile_valid_cols ops
-    whose tile_buf operands are now bound to concrete values.
+    structured-view intrinsics whose operands are now bound to concrete values.
 
     This pass resolves them:
     - pto.tile_buf_addr → replaced by the underlying pto.bind_tile source
       memref, or pto.castptr when the requested result type is !pto.ptr
     - pto.tile_valid_rows → folded to arith.constant if v_row is static,
-      or replaced with the dynamic index value from tile_buf
+      or replaced with the dynamic index value from bind_tile
     - pto.tile_valid_cols → same as above for v_col
+
+    tensor_view family:
+    - pto.tensor_view_addr → traces through unrealized_conversion_cast →
+      subview → reinterpret_cast, then folds to the base memref or to
+      pto.castptr/pto.addptr on the base memref
+    - pto.get_tensor_view_dim → folded to arith.constant for static subview
+      sizes, or to the subview size SSA operand for dynamic dims
+    - pto.get_tensor_view_stride → folded to the reinterpret_cast stride
+      operand, multiplied by the subview stride when needed
+
+    Dead unrealized_conversion_cast, memref.subview, and
+    memref.reinterpret_cast ops exposed by folding are cleaned up after the
+    rewrite.
   }];
   let constructor = "mlir::pto::createFoldTileBufIntrinsicsPass()";
   let dependentDialects = [
