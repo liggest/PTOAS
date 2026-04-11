@@ -41,7 +41,7 @@ def find_ptoas_bin():
 
     search_dir = os.path.dirname(os.path.abspath(__file__))
     for _ in range(8):
-        candidate = os.path.join(search_dir, "build", "bin", "ptoas")
+        candidate = os.path.join(search_dir, "build", "tools", "ptoas", "ptoas")
         if os.path.isfile(candidate):
             return os.path.abspath(candidate)
         parent = os.path.dirname(search_dir)

@@ -16,18 +16,24 @@
 #   3. Compiles launch.cpp with -xcce and links kernel.o → shared library
 #   4. Builds host executable from main.cpp (no GTest — comparison via compare.py)
 # --------------------------------------------------------------------------
+set(PTO_TILELANG_ST_TESTCASE_DIR ${CMAKE_CURRENT_LIST_DIR})
+
 function(pto_tilelang_vec_st NAME)
     # Step 1: ptoas  .pto → kernel.ll
     set(PTO_SRC ${CMAKE_CURRENT_SOURCE_DIR}/${NAME}.pto)
     set(KERNEL_LL ${CMAKE_CURRENT_BINARY_DIR}/${NAME}_kernel.ll)
+    set(PTOAS_CAPTURE_SCRIPT
+        ${PTO_TILELANG_ST_TESTCASE_DIR}/run_ptoas_to_file.cmake)
     add_custom_command(
         OUTPUT ${KERNEL_LL}
-        COMMAND ${PTOAS_BIN}
-            --pto-arch=a5 --pto-backend=vpto
-            --enable-tile-op-expand --vpto-emit-hivm-llvm
-            ${PTO_SRC} -o ${KERNEL_LL}
-        DEPENDS ${PTO_SRC}
+        COMMAND ${CMAKE_COMMAND}
+            -DPTOAS_BIN=${PTOAS_BIN}
+            -DPTO_SRC=${PTO_SRC}
+            -DKERNEL_LL=${KERNEL_LL}
+            -P ${PTOAS_CAPTURE_SCRIPT}
+        DEPENDS ${PTO_SRC} ${PTOAS_CAPTURE_SCRIPT}
         COMMENT "ptoas: ${NAME}.pto -> ${NAME}_kernel.ll"
+        VERBATIM
     )
 
     # Step 2: bisheng  kernel.ll → kernel.o
