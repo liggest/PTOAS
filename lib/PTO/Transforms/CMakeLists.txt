@@ -29,6 +29,7 @@ add_mlir_dialect_library(PTOTransforms
   MemrefToTileBuf.cpp
   ExpandTileOp.cpp
   FoldTileBufIntrinsics.cpp
+  PTOInstantiateAndInlineOpLib.cpp
   PTOToEmitC.cpp
   Utils.cpp
   OptMemPlanForPipeline.cpp
