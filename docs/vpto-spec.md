@@ -1047,6 +1047,6 @@ pto.vstsx2 %x, %y, %ub_xy[%offset], "INTLV", %all_mask : !pto.vreg<64xf32>, !pto
 
 ### Part 3C
 
-2. **Store dist family completeness:** `vsts` currently covers `NORM`, `1PT`, `PK`, `PK4`, `MRG4CHN`, and `MRG2CHN`, while `vstsx2` covers `INTLV`. Confirm whether the surface constraints for these families are already sufficiently clear and complete.
+2. **Store dist family completeness:** `vsts` currently covers `NORM`, `1PT`, `PK`, `PK4`, `MRG4CHN`, and `MRG2CHN`, while `vstsx2` covers `INTLV`. `MRG4CHN` / `MRG2CHN` are preserved in the VPTO surface, but the current hardware still reports them as unsupported via verifier warning and they are not expected to validate at runtime on A5 today.
 3. **vcvt width-changing pattern:** The even/odd + `vor` pattern for forms such as `f32 -> f16` is the standard compiler lowering. Confirm this is the intended representation in the spec.
 4. **Stateful store ops (Section 14):** These are complex with SSA state threading. Are they all needed for A5, or can some be simplified?

@@ -86,7 +86,7 @@ Most **`dist:`** tokens are **9** issue→retire cycles. **`INTLV`** on **`RV_VS
 | `NORM` | **9** cycles (`RV_VSTI`) |
 | `PK` | **9** cycles |
 | `INTLV` (`pto.vstx2`) | **12** cycles |
-| `MRG4CHN`, `MRG2CHN` | **9** cycles |
+| `MRG4CHN`, `MRG2CHN` | **9** cycles (surface retained; current A5 hardware still reports them unsupported at validation time) |
 
 ### Gather, scatter, and special addressing
 
@@ -386,8 +386,8 @@ for (int blk = 0; blk < VL / 32; ++blk) {
 | `1PT` | `b8`, `b16`, `b32` | Only element 0 is written to the destination footprint | **9** cycles |
 | `PK` | `b16`, `b32`, `b64` | Pack low half bits of each source element before store | **9** cycles |
 | `PK4` | `b32` | Pack low 8 bits of each `b32` element before store | **9** cycles |
-| `MRG4CHN` | `b8` | Merge 4 channel planes into an interleaved 4-channel layout | **9** cycles |
-| `MRG2CHN` | `b8`, `b16` | Merge 2 channel planes into an interleaved 2-channel layout | **9** cycles |
+| `MRG4CHN` | `b8` | Merge 4 channel planes into an interleaved 4-channel layout. VPTO currently requires `!pto.mask<b32>` for this family and emits a hardware-unsupported warning on A5. | **9** cycles |
+| `MRG2CHN` | `b8`, `b16` | Merge 2 channel planes into an interleaved 2-channel layout. VPTO currently requires `!pto.mask<b16>` for `b8` input and `!pto.mask<b32>` for `b16` input, and emits a hardware-unsupported warning on A5. | **9** cycles |
 
 **Example — Contiguous store:**
 ```mlir
