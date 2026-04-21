@@ -134,6 +134,7 @@ set(ALL_TESTCASES
     tload
     softmax
     tabs
+    texp
 )
 
 if((TEST_CASE IN_LIST ALL_TESTCASES) OR (TEST_CASE STREQUAL "all"))
