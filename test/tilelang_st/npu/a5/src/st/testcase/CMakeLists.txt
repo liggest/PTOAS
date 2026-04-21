@@ -137,6 +137,7 @@ set(ALL_TESTCASES
     texp
     tlog
     tneg
+    tnot
 )
 
 if((TEST_CASE IN_LIST ALL_TESTCASES) OR (TEST_CASE STREQUAL "all"))
