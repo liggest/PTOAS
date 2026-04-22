@@ -3,7 +3,8 @@ import tilelang_dsl as pto
 # TODO: Add implementation for HIGH_PRECISION type
 @pto.vkernel(
     target="a5",
-    op="pto.trecip"
+    op="pto.trecip",
+    dtypes=[(pto.f16, pto.f16), (pto.f32, pto.f32)]
 )
 def template_trecip(src: pto.Tile, dst: pto.Tile):
     dtype = dst.element_type
