@@ -1,6 +1,6 @@
 import tilelang_dsl as pto
 
-
+# TODO: Add implementation for HIGH_PRECISION type
 @pto.vkernel(
     target="a5",
     op="pto.tlog"
