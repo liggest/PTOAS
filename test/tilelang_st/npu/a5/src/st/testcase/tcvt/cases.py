@@ -124,5 +124,8 @@ CASES = [
     *_make_cases(np.float32, np.int32),
     *_make_cases(np.float16, np.float32),
     *_make_cases(bfloat16, np.float32),
+    *_make_cases(np.int16, np.float32),
+    *_make_cases(np.int16, np.uint32),
+    *_make_cases(np.int16, np.int32),
     *_make_cases(np.int32, np.float32),
 ]

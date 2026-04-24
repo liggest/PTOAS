@@ -210,3 +210,83 @@ def template_tcvt_bf16_to_f32(src: pto.Tile, dst: pto.Tile):
             )
             pto.vsts(converted, dst[row, col:], store_mask)
     return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
+        (pto.i16, pto.f32),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+)
+def template_tcvt_i16_to_f32(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    full_mask = pto.make_mask(pto.i16, pto.PAT.ALL)
+
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols
+        for col in range(0, valid_cols, pto.get_lanes(pto.f32)):
+            store_mask, remained = pto.make_mask(pto.f32, remained)
+            vec = pto.vlds(src[row, col:], dist=pto.VLoadDist.UNPK_B16)
+            converted = pto.vcvt(
+                vec,
+                pto.f32,
+                full_mask,
+                part=pto.VcvtPartMode.EVEN,
+            )
+            pto.vsts(converted, dst[row, col:], store_mask)
+    return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
+        (pto.i16, pto.i32),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+)
+def template_tcvt_i16_to_i32(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    full_mask = pto.make_mask(pto.i16, pto.PAT.ALL)
+
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols
+        for col in range(0, valid_cols, pto.get_lanes(pto.i32)):
+            store_mask, remained = pto.make_mask(pto.i32, remained)
+            vec = pto.vlds(src[row, col:], dist=pto.VLoadDist.UNPK_B16)
+            converted = pto.vcvt(
+                vec,
+                pto.i32,
+                full_mask,
+                part=pto.VcvtPartMode.EVEN,
+            )
+            pto.vsts(converted, dst[row, col:], store_mask)
+    return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
+        (pto.i16, pto.ui32),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+)
+def template_tcvt_i16_to_ui32(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    full_mask = pto.make_mask(pto.i16, pto.PAT.ALL)
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols
+        for col in range(0, valid_cols, pto.get_lanes(pto.ui32)):
+            store_mask, remained = pto.make_mask(pto.ui32, remained)
+            vec = pto.vlds(src[row, col:], dist=pto.VLoadDist.UNPK_B16)
+            converted = pto.vcvt(
+                vec,
+                pto.ui32,
+                full_mask,
+                part=pto.VcvtPartMode.EVEN,
+            )
+            pto.vsts(converted, dst[row, col:], store_mask)
+    return
