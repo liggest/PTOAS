@@ -134,7 +134,7 @@ PTOAS + TileLib 已经全部打通。
 | `f16` | `f32` | 1D+2D，`vcvt + part` | type expand | `已支持` |
 | `bf16` | `f32` | 1D+2D，`vcvt + part` | type expand | `已支持` |
 | `i16` | `f32` / `i32` / `u32` | 1D+2D，expand helper | widening path | `已支持` |
-| `i32` | `i64` | 1D+2D，expand helper | | |
+| `i32` | `i64` | 1D+2D，expand helper | | `已支持` |
 | `u8` | `f16` / `u16` | 1D only，expand helper | 当前只看到 1D helper | |
 | `i8` | `f16` / `i16` / `i32` | 1D only，expand helper | 当前只看到 1D helper | |
 | `fp8_e4m3` / `fp8_e5m2` / `h8` | `f32` | 1D+2D，expand helper | source 8-bit float | |
