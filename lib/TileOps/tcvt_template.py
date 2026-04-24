@@ -37,6 +37,7 @@ def _supports_basic_rowwise_tcvt(
         return False
     return True
 
+
 @pto.vkernel(
     target="a5",
     op="pto.tcvt",
