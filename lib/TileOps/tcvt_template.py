@@ -316,3 +316,55 @@ def template_tcvt_i32_to_i64(src: pto.Tile, dst: pto.Tile):
             )
             pto.vsts(converted, dst[row, col:], store_mask, dist=pto.VStoreDist.NORM_B32)
     return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
+        (pto.ui8, pto.f16),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+)
+def template_tcvt_ui8_to_f16(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    full_mask = pto.make_mask(pto.ui8, pto.PAT.ALL)
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols
+        for col in range(0, valid_cols, pto.get_lanes(pto.f16)):
+            store_mask, remained = pto.make_mask(pto.f16, remained)
+            vec = pto.vlds(src[row, col:], dist=pto.VLoadDist.UNPK_B8)
+            converted = pto.vcvt(
+                vec,
+                pto.f16,
+                full_mask,
+                part=pto.VcvtPartMode.EVEN,
+            )
+            pto.vsts(converted, dst[row, col:], store_mask)
+    return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
+        (pto.ui8, pto.ui16),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+)
+def template_tcvt_ui8_to_ui16(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    full_mask = pto.make_mask(pto.ui8, pto.PAT.ALL)
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols
+        for col in range(0, valid_cols, pto.get_lanes(pto.ui16)):
+            store_mask, remained = pto.make_mask(pto.ui16, remained)
+            vec = pto.vlds(src[row, col:], dist=pto.VLoadDist.UNPK_B8)
+            converted = pto.vcvt(
+                vec,
+                pto.ui16,
+                full_mask,
+                part=pto.VcvtPartMode.EVEN,
+            )
+            pto.vsts(converted, dst[row, col:], store_mask)
+    return

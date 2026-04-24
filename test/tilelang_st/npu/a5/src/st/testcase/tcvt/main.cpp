@@ -49,6 +49,20 @@ void LaunchTCVT_bf16_to_f32_2x128(void *src, void *dst, void *stream);
 void LaunchTCVT_bf16_to_f32_4x65(void *src, void *dst, void *stream);
 void LaunchTCVT_bf16_to_f32_4x200(void *src, void *dst, void *stream);
 void LaunchTCVT_bf16_to_f32_1x129(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_f16_1x128(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_f16_2x64(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_f16_4x32(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_f16_2x128(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_f16_4x65(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_f16_4x200(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_f16_1x129(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_ui16_1x128(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_ui16_2x64(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_ui16_4x32(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_ui16_2x128(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_ui16_4x65(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_ui16_4x200(void *src, void *dst, void *stream);
+void LaunchTCVT_ui8_to_ui16_1x129(void *src, void *dst, void *stream);
 void LaunchTCVT_i16_to_f32_1x128(void *src, void *dst, void *stream);
 void LaunchTCVT_i16_to_f32_2x64(void *src, void *dst, void *stream);
 void LaunchTCVT_i16_to_f32_4x32(void *src, void *dst, void *stream);
@@ -132,6 +146,20 @@ static const TestCase kCases[] = {
     {"bf16_to_f32_4x65", LaunchTCVT_bf16_to_f32_4x65, 4, 128, 4, 128, sizeof(uint16_t), sizeof(float)},
     {"bf16_to_f32_4x200", LaunchTCVT_bf16_to_f32_4x200, 4, 256, 4, 256, sizeof(uint16_t), sizeof(float)},
     {"bf16_to_f32_1x129", LaunchTCVT_bf16_to_f32_1x129, 1, 256, 1, 256, sizeof(uint16_t), sizeof(float)},
+    {"ui8_to_f16_1x128", LaunchTCVT_ui8_to_f16_1x128, 1, 128, 1, 128, sizeof(uint8_t), sizeof(uint16_t)},
+    {"ui8_to_f16_2x64", LaunchTCVT_ui8_to_f16_2x64, 2, 64, 2, 64, sizeof(uint8_t), sizeof(uint16_t)},
+    {"ui8_to_f16_4x32", LaunchTCVT_ui8_to_f16_4x32, 4, 32, 4, 32, sizeof(uint8_t), sizeof(uint16_t)},
+    {"ui8_to_f16_2x128", LaunchTCVT_ui8_to_f16_2x128, 2, 128, 2, 128, sizeof(uint8_t), sizeof(uint16_t)},
+    {"ui8_to_f16_4x65", LaunchTCVT_ui8_to_f16_4x65, 4, 128, 4, 128, sizeof(uint8_t), sizeof(uint16_t)},
+    {"ui8_to_f16_4x200", LaunchTCVT_ui8_to_f16_4x200, 4, 256, 4, 256, sizeof(uint8_t), sizeof(uint16_t)},
+    {"ui8_to_f16_1x129", LaunchTCVT_ui8_to_f16_1x129, 1, 256, 1, 256, sizeof(uint8_t), sizeof(uint16_t)},
+    {"ui8_to_ui16_1x128", LaunchTCVT_ui8_to_ui16_1x128, 1, 128, 1, 128, sizeof(uint8_t), sizeof(uint16_t)},
+    {"ui8_to_ui16_2x64", LaunchTCVT_ui8_to_ui16_2x64, 2, 64, 2, 64, sizeof(uint8_t), sizeof(uint16_t)},
+    {"ui8_to_ui16_4x32", LaunchTCVT_ui8_to_ui16_4x32, 4, 32, 4, 32, sizeof(uint8_t), sizeof(uint16_t)},
+    {"ui8_to_ui16_2x128", LaunchTCVT_ui8_to_ui16_2x128, 2, 128, 2, 128, sizeof(uint8_t), sizeof(uint16_t)},
+    {"ui8_to_ui16_4x65", LaunchTCVT_ui8_to_ui16_4x65, 4, 128, 4, 128, sizeof(uint8_t), sizeof(uint16_t)},
+    {"ui8_to_ui16_4x200", LaunchTCVT_ui8_to_ui16_4x200, 4, 256, 4, 256, sizeof(uint8_t), sizeof(uint16_t)},
+    {"ui8_to_ui16_1x129", LaunchTCVT_ui8_to_ui16_1x129, 1, 256, 1, 256, sizeof(uint8_t), sizeof(uint16_t)},
     {"i16_to_f32_1x128", LaunchTCVT_i16_to_f32_1x128, 1, 128, 1, 128, sizeof(int16_t), sizeof(float)},
     {"i16_to_f32_2x64", LaunchTCVT_i16_to_f32_2x64, 2, 64, 2, 64, sizeof(int16_t), sizeof(float)},
     {"i16_to_f32_4x32", LaunchTCVT_i16_to_f32_4x32, 4, 32, 4, 32, sizeof(int16_t), sizeof(float)},
