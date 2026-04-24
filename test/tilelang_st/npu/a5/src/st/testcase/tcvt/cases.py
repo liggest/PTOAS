@@ -16,6 +16,7 @@ Actual data generation and comparison use `src_dtype` / `dst_dtype`.
 """
 
 import numpy as np
+from ml_dtypes import bfloat16
 
 # 7 shapes (aligning with C++ INSTANTIATE_TCVT)
 SHAPES = [
@@ -31,7 +32,7 @@ SHAPES = [
 _DTYPE_NAME = {
     np.float32: "f32",
     np.float16: "f16",
-    "bf16": "bf16",
+    bfloat16: "bf16",
     np.int8: "si8",
     np.uint8: "ui8",
     np.int16: "i16",
@@ -50,7 +51,7 @@ def _make_cases(src_dtype, dst_dtype):
     dst_name = _DTYPE_NAME.get(dst_dtype, dst_dtype)
     
     # eps: f32=1e-6; f16/bf16=1e-3; others=0
-    eps_map = {np.float32: 1e-6, np.float16: 1e-3, "bf16": 1e-3}
+    eps_map = {np.float32: 1e-6, np.float16: 1e-3, bfloat16: 1e-3}
     eps = eps_map.get(dst_dtype, 0.0)
     
     cases = []

@@ -11,11 +11,12 @@
 
 import numpy as np
 import cases
+from cases import bfloat16
 
 _DTYPE_TO_CPP = {
     np.float32: "float",
     np.float16: "uint16_t",
-    "bf16": "bfloat16_t",
+    bfloat16: "uint16_t",
     np.int8: "int8_t",
     np.uint8: "uint8_t",
     np.int16: "int16_t",

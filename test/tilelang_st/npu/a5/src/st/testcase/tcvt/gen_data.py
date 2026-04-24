@@ -11,14 +11,14 @@
 
 import numpy as np
 
-from cases import CASES
+from cases import CASES, bfloat16
 from compare import normalize_dtype
 from st_common import save_case_data, setup_case_rng, validate_cases
 
 
 def _make_input_inner(src_dtype, shape):
     total = int(np.prod(shape))
-    float_types = (np.float32, np.float16, "bf16")
+    float_types = (np.float32, np.float16, bfloat16)
     int8_like_types = (np.int8, )
 
     # Generate input data
@@ -41,7 +41,7 @@ def _make_input_inner(src_dtype, shape):
 
 
 def make_input(src_dtype, shape):
-    return _make_input_inner(src_dtype, shape).astype(src_dtype).reshape(shape)
+    return _make_input_inner(src_dtype, shape).astype(normalize_dtype(src_dtype)).reshape(shape)
 
 
 def round_half_away_from_zero(values):
