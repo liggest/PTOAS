@@ -11,17 +11,62 @@
 
 """Single source of truth for tcvt ST test cases.
 
-Current TileLib tcvt support covered by this testcase:
-  - f32 -> i32
-  - f32 -> f16
-  - f16 -> f32
-  - i32 -> f32
-
 `dtype` is kept for shared validation compatibility.
 Actual data generation and comparison use `src_dtype` / `dst_dtype`.
 """
 
 import numpy as np
+
+# 7 shapes (aligning with C++ INSTANTIATE_TCVT)
+SHAPES = [
+    (1, 128, 1, 128),
+    (2, 64, 2, 64),
+    (4, 32, 4, 32),
+    (2, 128, 2, 128),
+    (4, 128, 4, 65),   # Partial tiles
+    (4, 256, 4, 200),  # Partial tiles
+    (1, 256, 1, 129),  # Partial tiles
+]
+
+_DTYPE_NAME = {
+    np.float32: "f32",
+    np.float16: "f16",
+    "bf16": "bf16",
+    np.int8: "si8",
+    np.uint8: "ui8",
+    np.int16: "i16",
+    "si16": "si16",
+    np.uint16: "ui16",
+    np.int32: "i32",
+    np.uint32: "ui32",
+    np.int64: "i64",
+    np.uint64: "ui64",
+}
+
+
+def _make_cases(src_dtype, dst_dtype):
+    """Generate cases of 7 test shapes for src_dtype -> dst_dtype"""
+    src_name = _DTYPE_NAME.get(src_dtype, src_dtype)
+    dst_name = _DTYPE_NAME.get(dst_dtype, dst_dtype)
+    
+    # eps: f32=1e-6; f16/bf16=1e-3; others=0
+    eps_map = {np.float32: 1e-6, np.float16: 1e-3, "bf16": 1e-3}
+    eps = eps_map.get(dst_dtype, 0.0)
+    
+    cases = []
+    for rows, cols, v_rows, v_cols in SHAPES:
+        shape_name = f"{rows}x{cols}" if v_cols == cols else f"{v_rows}x{v_cols}"
+        cases.append({
+            "name": f"{src_name}_to_{dst_name}_{shape_name}",
+            "dtype": dst_dtype,
+            "src_dtype": src_dtype,
+            "dst_dtype": dst_dtype,
+            "shape": (rows, cols),
+            "valid_shape": (v_rows, v_cols),
+            "eps": eps,
+        })
+    return cases
+
 
 CASES = [
     {
