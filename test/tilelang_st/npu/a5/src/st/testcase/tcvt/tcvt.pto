@@ -1257,7 +1257,342 @@ module {
     return
   }
 
-  // Case 26: i32 -> f32, default RINT
+  // Case 26: bf16 -> f32, default RINT
+  func.func @TCVT_bf16_to_f32_1x128(%src_ptr: !pto.ptr<bf16>, %dst_ptr: !pto.ptr<f32>) {
+    %c0   = arith.constant 0   : index
+    %c1   = arith.constant 1   : index
+    %c128 = arith.constant 128 : index
+
+    %src_view = pto.make_tensor_view %src_ptr,
+      shape = [%c1, %c1, %c1, %c1, %c128],
+      strides = [%c128, %c128, %c128, %c128, %c1]
+      : !pto.tensor_view<1x1x1x1x128xbf16>
+    %dst_view = pto.make_tensor_view %dst_ptr,
+      shape = [%c1, %c1, %c1, %c1, %c128],
+      strides = [%c128, %c128, %c128, %c128, %c1]
+      : !pto.tensor_view<1x1x1x1x128xf32>
+
+    %src_part = pto.partition_view %src_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c1, %c128]
+      : !pto.tensor_view<1x1x1x1x128xbf16> -> !pto.partition_tensor_view<1x1x1x1x128xbf16>
+    %dst_part = pto.partition_view %dst_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c1, %c128]
+      : !pto.tensor_view<1x1x1x1x128xf32> -> !pto.partition_tensor_view<1x1x1x1x128xf32>
+
+    %src = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=bf16, rows=1, cols=128, v_row=1, v_col=128,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+    %dst = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=f32, rows=1, cols=128, v_row=1, v_col=128,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+
+    pto.tload ins(%src_part : !pto.partition_tensor_view<1x1x1x1x128xbf16>)
+              outs(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=1, cols=128, v_row=1, v_col=128,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tcvt ins(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=1, cols=128, v_row=1, v_col=128,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+             outs(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=1, cols=128, v_row=1, v_col=128,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tstore ins(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=1, cols=128, v_row=1, v_col=128,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+               outs(%dst_part : !pto.partition_tensor_view<1x1x1x1x128xf32>)
+    return
+  }
+
+  // Case 27: bf16 -> f32, default RINT
+  func.func @TCVT_bf16_to_f32_2x64(%src_ptr: !pto.ptr<bf16>, %dst_ptr: !pto.ptr<f32>) {
+    %c0   = arith.constant 0   : index
+    %c1   = arith.constant 1   : index
+    %c2   = arith.constant 2   : index
+    %c64  = arith.constant 64  : index
+    %c128 = arith.constant 128 : index
+
+    %src_view = pto.make_tensor_view %src_ptr,
+      shape = [%c1, %c1, %c1, %c2, %c64],
+      strides = [%c128, %c128, %c128, %c64, %c1]
+      : !pto.tensor_view<1x1x1x2x64xbf16>
+    %dst_view = pto.make_tensor_view %dst_ptr,
+      shape = [%c1, %c1, %c1, %c2, %c64],
+      strides = [%c128, %c128, %c128, %c64, %c1]
+      : !pto.tensor_view<1x1x1x2x64xf32>
+
+    %src_part = pto.partition_view %src_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c2, %c64]
+      : !pto.tensor_view<1x1x1x2x64xbf16> -> !pto.partition_tensor_view<1x1x1x2x64xbf16>
+    %dst_part = pto.partition_view %dst_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c2, %c64]
+      : !pto.tensor_view<1x1x1x2x64xf32> -> !pto.partition_tensor_view<1x1x1x2x64xf32>
+
+    %src = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=bf16, rows=2, cols=64, v_row=2, v_col=64,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+    %dst = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=f32, rows=2, cols=64, v_row=2, v_col=64,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+
+    pto.tload ins(%src_part : !pto.partition_tensor_view<1x1x1x2x64xbf16>)
+              outs(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=2, cols=64, v_row=2, v_col=64,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tcvt ins(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=2, cols=64, v_row=2, v_col=64,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+             outs(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=2, cols=64, v_row=2, v_col=64,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tstore ins(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=2, cols=64, v_row=2, v_col=64,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+               outs(%dst_part : !pto.partition_tensor_view<1x1x1x2x64xf32>)
+    return
+  }
+
+  // Case 28: bf16 -> f32, default RINT
+  func.func @TCVT_bf16_to_f32_4x32(%src_ptr: !pto.ptr<bf16>, %dst_ptr: !pto.ptr<f32>) {
+    %c0   = arith.constant 0   : index
+    %c1   = arith.constant 1   : index
+    %c4   = arith.constant 4   : index
+    %c32  = arith.constant 32  : index
+    %c128 = arith.constant 128 : index
+
+    %src_view = pto.make_tensor_view %src_ptr,
+      shape = [%c1, %c1, %c1, %c4, %c32],
+      strides = [%c128, %c128, %c128, %c32, %c1]
+      : !pto.tensor_view<1x1x1x4x32xbf16>
+    %dst_view = pto.make_tensor_view %dst_ptr,
+      shape = [%c1, %c1, %c1, %c4, %c32],
+      strides = [%c128, %c128, %c128, %c32, %c1]
+      : !pto.tensor_view<1x1x1x4x32xf32>
+
+    %src_part = pto.partition_view %src_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c4, %c32]
+      : !pto.tensor_view<1x1x1x4x32xbf16> -> !pto.partition_tensor_view<1x1x1x4x32xbf16>
+    %dst_part = pto.partition_view %dst_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c4, %c32]
+      : !pto.tensor_view<1x1x1x4x32xf32> -> !pto.partition_tensor_view<1x1x1x4x32xf32>
+
+    %src = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=bf16, rows=4, cols=32, v_row=4, v_col=32,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+    %dst = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=f32, rows=4, cols=32, v_row=4, v_col=32,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+
+    pto.tload ins(%src_part : !pto.partition_tensor_view<1x1x1x4x32xbf16>)
+              outs(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=4, cols=32, v_row=4, v_col=32,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tcvt ins(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=4, cols=32, v_row=4, v_col=32,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+             outs(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=4, cols=32, v_row=4, v_col=32,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tstore ins(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=4, cols=32, v_row=4, v_col=32,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+               outs(%dst_part : !pto.partition_tensor_view<1x1x1x4x32xf32>)
+    return
+  }
+
+  // Case 29: bf16 -> f32, default RINT
+  func.func @TCVT_bf16_to_f32_2x128(%src_ptr: !pto.ptr<bf16>, %dst_ptr: !pto.ptr<f32>) {
+    %c0   = arith.constant 0   : index
+    %c1   = arith.constant 1   : index
+    %c2   = arith.constant 2   : index
+    %c128 = arith.constant 128 : index
+    %c256 = arith.constant 256 : index
+
+    %src_view = pto.make_tensor_view %src_ptr,
+      shape = [%c1, %c1, %c1, %c2, %c128],
+      strides = [%c256, %c256, %c256, %c128, %c1]
+      : !pto.tensor_view<1x1x1x2x128xbf16>
+    %dst_view = pto.make_tensor_view %dst_ptr,
+      shape = [%c1, %c1, %c1, %c2, %c128],
+      strides = [%c256, %c256, %c256, %c128, %c1]
+      : !pto.tensor_view<1x1x1x2x128xf32>
+
+    %src_part = pto.partition_view %src_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c2, %c128]
+      : !pto.tensor_view<1x1x1x2x128xbf16> -> !pto.partition_tensor_view<1x1x1x2x128xbf16>
+    %dst_part = pto.partition_view %dst_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c2, %c128]
+      : !pto.tensor_view<1x1x1x2x128xf32> -> !pto.partition_tensor_view<1x1x1x2x128xf32>
+
+    %src = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=bf16, rows=2, cols=128, v_row=2, v_col=128,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+    %dst = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=f32, rows=2, cols=128, v_row=2, v_col=128,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+
+    pto.tload ins(%src_part : !pto.partition_tensor_view<1x1x1x2x128xbf16>)
+              outs(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=2, cols=128, v_row=2, v_col=128,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tcvt ins(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=2, cols=128, v_row=2, v_col=128,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+             outs(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=2, cols=128, v_row=2, v_col=128,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tstore ins(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=2, cols=128, v_row=2, v_col=128,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+               outs(%dst_part : !pto.partition_tensor_view<1x1x1x2x128xf32>)
+    return
+  }
+
+  // Case 30: bf16 -> f32, default RINT
+  func.func @TCVT_bf16_to_f32_4x65(%src_ptr: !pto.ptr<bf16>, %dst_ptr: !pto.ptr<f32>) {
+    %c0   = arith.constant 0   : index
+    %c1   = arith.constant 1   : index
+    %c4   = arith.constant 4   : index
+    %c65  = arith.constant 65  : index
+    %c128 = arith.constant 128 : index
+    %c512 = arith.constant 512 : index
+
+    %src_view = pto.make_tensor_view %src_ptr,
+      shape = [%c1, %c1, %c1, %c4, %c128],
+      strides = [%c512, %c512, %c512, %c128, %c1]
+      : !pto.tensor_view<1x1x1x4x128xbf16>
+    %dst_view = pto.make_tensor_view %dst_ptr,
+      shape = [%c1, %c1, %c1, %c4, %c128],
+      strides = [%c512, %c512, %c512, %c128, %c1]
+      : !pto.tensor_view<1x1x1x4x128xf32>
+
+    %src_part = pto.partition_view %src_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c4, %c65]
+      : !pto.tensor_view<1x1x1x4x128xbf16> -> !pto.partition_tensor_view<1x1x1x4x65xbf16>
+    %dst_part = pto.partition_view %dst_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c4, %c65]
+      : !pto.tensor_view<1x1x1x4x128xf32> -> !pto.partition_tensor_view<1x1x1x4x65xf32>
+
+    %src = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=bf16, rows=4, cols=128, v_row=4, v_col=65,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+    %dst = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=f32, rows=4, cols=128, v_row=4, v_col=65,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+
+    pto.tload ins(%src_part : !pto.partition_tensor_view<1x1x1x4x65xbf16>)
+              outs(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=4, cols=128, v_row=4, v_col=65,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tcvt ins(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=4, cols=128, v_row=4, v_col=65,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+             outs(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=4, cols=128, v_row=4, v_col=65,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tstore ins(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=4, cols=128, v_row=4, v_col=65,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+               outs(%dst_part : !pto.partition_tensor_view<1x1x1x4x65xf32>)
+    return
+  }
+
+  // Case 31: bf16 -> f32, default RINT
+  func.func @TCVT_bf16_to_f32_4x200(%src_ptr: !pto.ptr<bf16>, %dst_ptr: !pto.ptr<f32>) {
+    %c0    = arith.constant 0    : index
+    %c1    = arith.constant 1    : index
+    %c4    = arith.constant 4    : index
+    %c200  = arith.constant 200  : index
+    %c256  = arith.constant 256  : index
+    %c1024 = arith.constant 1024 : index
+
+    %src_view = pto.make_tensor_view %src_ptr,
+      shape = [%c1, %c1, %c1, %c4, %c256],
+      strides = [%c1024, %c1024, %c1024, %c256, %c1]
+      : !pto.tensor_view<1x1x1x4x256xbf16>
+    %dst_view = pto.make_tensor_view %dst_ptr,
+      shape = [%c1, %c1, %c1, %c4, %c256],
+      strides = [%c1024, %c1024, %c1024, %c256, %c1]
+      : !pto.tensor_view<1x1x1x4x256xf32>
+
+    %src_part = pto.partition_view %src_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c4, %c200]
+      : !pto.tensor_view<1x1x1x4x256xbf16> -> !pto.partition_tensor_view<1x1x1x4x200xbf16>
+    %dst_part = pto.partition_view %dst_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c4, %c200]
+      : !pto.tensor_view<1x1x1x4x256xf32> -> !pto.partition_tensor_view<1x1x1x4x200xf32>
+
+    %src = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=bf16, rows=4, cols=256, v_row=4, v_col=200,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+    %dst = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=f32, rows=4, cols=256, v_row=4, v_col=200,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+
+    pto.tload ins(%src_part : !pto.partition_tensor_view<1x1x1x4x200xbf16>)
+              outs(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=4, cols=256, v_row=4, v_col=200,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tcvt ins(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=4, cols=256, v_row=4, v_col=200,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+             outs(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=4, cols=256, v_row=4, v_col=200,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tstore ins(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=4, cols=256, v_row=4, v_col=200,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+               outs(%dst_part : !pto.partition_tensor_view<1x1x1x4x200xf32>)
+    return
+  }
+
+  // Case 32: bf16 -> f32, default RINT
+  func.func @TCVT_bf16_to_f32_1x129(%src_ptr: !pto.ptr<bf16>, %dst_ptr: !pto.ptr<f32>) {
+    %c0   = arith.constant 0   : index
+    %c1   = arith.constant 1   : index
+    %c129 = arith.constant 129 : index
+    %c256 = arith.constant 256 : index
+
+    %src_view = pto.make_tensor_view %src_ptr,
+      shape = [%c1, %c1, %c1, %c1, %c256],
+      strides = [%c256, %c256, %c256, %c256, %c1]
+      : !pto.tensor_view<1x1x1x1x256xbf16>
+    %dst_view = pto.make_tensor_view %dst_ptr,
+      shape = [%c1, %c1, %c1, %c1, %c256],
+      strides = [%c256, %c256, %c256, %c256, %c1]
+      : !pto.tensor_view<1x1x1x1x256xf32>
+
+    %src_part = pto.partition_view %src_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c1, %c129]
+      : !pto.tensor_view<1x1x1x1x256xbf16> -> !pto.partition_tensor_view<1x1x1x1x129xbf16>
+    %dst_part = pto.partition_view %dst_view,
+      offsets = [%c0, %c0, %c0, %c0, %c0],
+      sizes = [%c1, %c1, %c1, %c1, %c129]
+      : !pto.tensor_view<1x1x1x1x256xf32> -> !pto.partition_tensor_view<1x1x1x1x129xf32>
+
+    %src = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=bf16, rows=1, cols=256, v_row=1, v_col=129,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+    %dst = pto.alloc_tile
+      : !pto.tile_buf<loc=vec, dtype=f32, rows=1, cols=256, v_row=1, v_col=129,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>
+
+    pto.tload ins(%src_part : !pto.partition_tensor_view<1x1x1x1x129xbf16>)
+              outs(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=1, cols=256, v_row=1, v_col=129,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tcvt ins(%src : !pto.tile_buf<loc=vec, dtype=bf16, rows=1, cols=256, v_row=1, v_col=129,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+             outs(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=1, cols=256, v_row=1, v_col=129,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+
+    pto.tstore ins(%dst : !pto.tile_buf<loc=vec, dtype=f32, rows=1, cols=256, v_row=1, v_col=129,
+                      blayout=row_major, slayout=none_box, fractal=512, pad=0>)
+               outs(%dst_part : !pto.partition_tensor_view<1x1x1x1x129xf32>)
+    return
+  }
+
+  // Case 33: i32 -> f32, default RINT
   func.func @TCVT_i32_to_f32_1x128(%src_ptr: !pto.ptr<i32>, %dst_ptr: !pto.ptr<f32>) {
     %c0   = arith.constant 0   : index
     %c1   = arith.constant 1   : index
@@ -1303,7 +1638,7 @@ module {
     return
   }
 
-  // Case 27: i32 -> f32, default RINT
+  // Case 34: i32 -> f32, default RINT
   func.func @TCVT_i32_to_f32_2x64(%src_ptr: !pto.ptr<i32>, %dst_ptr: !pto.ptr<f32>) {
     %c0   = arith.constant 0   : index
     %c1   = arith.constant 1   : index
@@ -1351,7 +1686,7 @@ module {
     return
   }
 
-  // Case 28: i32 -> f32, default RINT
+  // Case 35: i32 -> f32, default RINT
   func.func @TCVT_i32_to_f32_4x32(%src_ptr: !pto.ptr<i32>, %dst_ptr: !pto.ptr<f32>) {
     %c0   = arith.constant 0   : index
     %c1   = arith.constant 1   : index
@@ -1399,7 +1734,7 @@ module {
     return
   }
 
-  // Case 29: i32 -> f32, default RINT
+  // Case 36: i32 -> f32, default RINT
   func.func @TCVT_i32_to_f32_2x128(%src_ptr: !pto.ptr<i32>, %dst_ptr: !pto.ptr<f32>) {
     %c0   = arith.constant 0   : index
     %c1   = arith.constant 1   : index
@@ -1447,7 +1782,7 @@ module {
     return
   }
 
-  // Case 30: i32 -> f32, default RINT
+  // Case 37: i32 -> f32, default RINT
   func.func @TCVT_i32_to_f32_4x65(%src_ptr: !pto.ptr<i32>, %dst_ptr: !pto.ptr<f32>) {
     %c0   = arith.constant 0   : index
     %c1   = arith.constant 1   : index
@@ -1496,7 +1831,7 @@ module {
     return
   }
 
-  // Case 31: i32 -> f32, default RINT
+  // Case 38: i32 -> f32, default RINT
   func.func @TCVT_i32_to_f32_4x200(%src_ptr: !pto.ptr<i32>, %dst_ptr: !pto.ptr<f32>) {
     %c0    = arith.constant 0    : index
     %c1    = arith.constant 1    : index
@@ -1545,7 +1880,7 @@ module {
     return
   }
 
-  // Case 32: i32 -> f32, default RINT
+  // Case 39: i32 -> f32, default RINT
   func.func @TCVT_i32_to_f32_1x129(%src_ptr: !pto.ptr<i32>, %dst_ptr: !pto.ptr<f32>) {
     %c0   = arith.constant 0   : index
     %c1   = arith.constant 1   : index
