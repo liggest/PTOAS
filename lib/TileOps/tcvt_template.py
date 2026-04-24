@@ -290,3 +290,29 @@ def template_tcvt_i16_to_ui32(src: pto.Tile, dst: pto.Tile):
             )
             pto.vsts(converted, dst[row, col:], store_mask)
     return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
+        (pto.i32, pto.i64),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+)
+def template_tcvt_i32_to_i64(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    full_mask = pto.make_mask(pto.i32, pto.PAT.ALL)
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols * 2  # i64 requires double the mask
+        for col in range(0, valid_cols, pto.get_lanes(pto.i64)):
+            store_mask, remained = pto.make_mask(pto.i64, remained)
+            vec = pto.vlds(src[row, col:], dist=pto.VLoadDist.UNPK_B32)
+            converted = pto.vcvt(
+                vec,
+                pto.i64,
+                full_mask,
+                part=pto.VcvtPartMode.EVEN,
+            )
+            pto.vsts(converted, dst[row, col:], store_mask, dist=pto.VStoreDist.NORM_B32)
+    return
