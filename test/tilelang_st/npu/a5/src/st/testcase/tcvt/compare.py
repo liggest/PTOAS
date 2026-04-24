@@ -16,9 +16,8 @@ import numpy as np
 from cases import CASES
 from st_common import result_cmp, style_fail, style_pass, validate_cases
 
-BF16 = np.float16
-_STR_DTYPE_MAP = {"bf16": BF16, "si16": np.int16}
 
+_STR_DTYPE_MAP = {"si16": np.int16}
 
 def normalize_dtype(dtype):
     return _STR_DTYPE_MAP.get(dtype, dtype)
