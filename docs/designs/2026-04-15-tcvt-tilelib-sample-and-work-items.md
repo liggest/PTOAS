@@ -161,7 +161,7 @@ PTOAS + TileLib 已经全部打通。
 |---|---|---|---|---|---|
 | `i16` | `u8` | 1D+2D，`vcvt + part` | `ON` | | `已支持` |
 | `i32` | `i16` | 1D+2D，`vcvt + part` | `OFF` | | `已支持` |
-| `i32` | `u16` / `u8` | 1D+2D，`vcvt + part` | `ON` | | |
+| `i32` | `u16` / `u8` | 1D+2D，`vcvt + part` | `ON` | | `已支持 i32->u16` |
 | `u32` | `i16` / `u16` / `u8` | 1D+2D，`vcvt + part` | `ON` | | |
 | `i64` | `i32` | 1D+2D，`vcvt + part` | `OFF` | | |
 
