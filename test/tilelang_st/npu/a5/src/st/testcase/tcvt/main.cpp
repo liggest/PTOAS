@@ -42,6 +42,13 @@ void LaunchTCVT_f32_to_i32_2x128(void *src, void *dst, void *stream);
 void LaunchTCVT_f32_to_i32_4x65(void *src, void *dst, void *stream);
 void LaunchTCVT_f32_to_i32_4x200(void *src, void *dst, void *stream);
 void LaunchTCVT_f32_to_i32_1x129(void *src, void *dst, void *stream);
+void LaunchTCVT_f32_to_i64_1x128(void *src, void *dst, void *stream);
+void LaunchTCVT_f32_to_i64_2x64(void *src, void *dst, void *stream);
+void LaunchTCVT_f32_to_i64_4x32(void *src, void *dst, void *stream);
+void LaunchTCVT_f32_to_i64_2x128(void *src, void *dst, void *stream);
+void LaunchTCVT_f32_to_i64_4x65(void *src, void *dst, void *stream);
+void LaunchTCVT_f32_to_i64_4x200(void *src, void *dst, void *stream);
+void LaunchTCVT_f32_to_i64_1x129(void *src, void *dst, void *stream);
 void LaunchTCVT_f32_to_f32_1x128(void *src, void *dst, void *stream);
 void LaunchTCVT_f32_to_f32_2x64(void *src, void *dst, void *stream);
 void LaunchTCVT_f32_to_f32_4x32(void *src, void *dst, void *stream);
@@ -216,6 +223,13 @@ static const TestCase kCases[] = {
     {"f32_to_i32_4x65", LaunchTCVT_f32_to_i32_4x65, 4, 128, 4, 128, sizeof(float), sizeof(int32_t)},
     {"f32_to_i32_4x200", LaunchTCVT_f32_to_i32_4x200, 4, 256, 4, 256, sizeof(float), sizeof(int32_t)},
     {"f32_to_i32_1x129", LaunchTCVT_f32_to_i32_1x129, 1, 256, 1, 256, sizeof(float), sizeof(int32_t)},
+    {"f32_to_i64_1x128", LaunchTCVT_f32_to_i64_1x128, 1, 128, 1, 128, sizeof(float), sizeof(int64_t)},
+    {"f32_to_i64_2x64", LaunchTCVT_f32_to_i64_2x64, 2, 64, 2, 64, sizeof(float), sizeof(int64_t)},
+    {"f32_to_i64_4x32", LaunchTCVT_f32_to_i64_4x32, 4, 32, 4, 32, sizeof(float), sizeof(int64_t)},
+    {"f32_to_i64_2x128", LaunchTCVT_f32_to_i64_2x128, 2, 128, 2, 128, sizeof(float), sizeof(int64_t)},
+    {"f32_to_i64_4x65", LaunchTCVT_f32_to_i64_4x65, 4, 128, 4, 128, sizeof(float), sizeof(int64_t)},
+    {"f32_to_i64_4x200", LaunchTCVT_f32_to_i64_4x200, 4, 256, 4, 256, sizeof(float), sizeof(int64_t)},
+    {"f32_to_i64_1x129", LaunchTCVT_f32_to_i64_1x129, 1, 256, 1, 256, sizeof(float), sizeof(int64_t)},
     {"f32_to_f32_1x128", LaunchTCVT_f32_to_f32_1x128, 1, 128, 1, 128, sizeof(float), sizeof(float)},
     {"f32_to_f32_2x64", LaunchTCVT_f32_to_f32_2x64, 2, 64, 2, 64, sizeof(float), sizeof(float)},
     {"f32_to_f32_4x32", LaunchTCVT_f32_to_f32_4x32, 4, 32, 4, 32, sizeof(float), sizeof(float)},
