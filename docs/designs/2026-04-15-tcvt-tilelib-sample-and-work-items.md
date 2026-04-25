@@ -162,7 +162,7 @@ PTOAS + TileLib 已经全部打通。
 | `i16` | `u8` | 1D+2D，`vcvt + part` | `ON` | | `已支持` |
 | `i32` | `i16` | 1D+2D，`vcvt + part` | `OFF` | | `已支持` |
 | `i32` | `u16` / `u8` | 1D+2D，`vcvt + part` | `ON` | | `已支持 i32->u16` |
-| `u32` | `i16` / `u16` / `u8` | 1D+2D，`vcvt + part` | `ON` | | |
+| `u32` | `i16` / `u16` / `u8` | 1D+2D，`vcvt + part` | `ON` | | `已支持 u32->i16, u32->u16` |
 | `i64` | `i32` | 1D+2D，`vcvt + part` | `OFF` | | |
 
 #### 3.2.4 同时受 `round_mode` 和 `sat_mode` 影响，但不需要 `NonSatTorch`
