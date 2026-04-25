@@ -139,4 +139,6 @@ CASES = [
     *_make_cases(np.int32, np.int16),
     *_make_cases(np.int32, np.int64),
     *_make_cases(np.int32, np.uint16),
+    *_make_cases(np.uint32, np.int16),
+    *_make_cases(np.uint32, np.uint16),
 ]
