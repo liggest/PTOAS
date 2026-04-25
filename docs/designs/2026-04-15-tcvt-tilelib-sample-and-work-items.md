@@ -148,7 +148,7 @@ PTOAS + TileLib 已经全部打通。
 |---|---|---|---|---|
 | `f32` | `f32` | 1D+2D，`vtrc` | 保持 `f32`，做 integer-valued float rounding | `已支持` |
 | `f16` | `i32` | 1D+2D，`vcvt + part` | | `已支持` |
-| `i16` | `f16` | 1D+2D，`vcvt` | | |
+| `i16` | `f16` | 1D+2D，`vcvt` | | `已支持` |
 | `i32` | `f32` | 1D+2D，`vcvt` | | `已支持` |
 | `i64` | `f32` | 1D+2D，`vcvt + part` | | |
 | `bf16` | `fp4_e1m2x2` / `fp4_e2m1x2` | 1D+2D，专用 packed helper | 不是普通 `vcvt` 套餐，但不吃 `sat_mode` | |
