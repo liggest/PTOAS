@@ -186,7 +186,7 @@ PTOAS + TileLib 已经全部打通。
 | 源类型 | 目标类型 | A5 helper 覆盖 | 默认 `effective_sat_mode` | `NonSatTorch` | 备注 | TileLib是否支持 |
 |---|---|---|---|---|---|---|
 | `f32` | `i16` | 1D+2D，`vcvt + part` | `OFF` | 是 | `OFF` 时走 `NonSatTorch` | `已支持` |
-| `f16` | `i16` | 1D+2D，`vcvt` | `OFF` | 是 | | |
+| `f16` | `i16` | 1D+2D，`vcvt` | `OFF` | 是 | | `已支持` |
 | `f16` | `i8` | 1D+2D，`vcvt + part` | `OFF` | 是 | | |
 
 #### 3.2.6 专用 helper，`round_mode` 受限
