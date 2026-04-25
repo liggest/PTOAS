@@ -171,7 +171,7 @@ PTOAS + TileLib 已经全部打通。
 
 | 源类型 | 目标类型 | A5 helper 覆盖 | 默认 `effective_sat_mode` | 备注 | TileLib是否支持 |
 |---|---|---|---|---|---|
-| `f32` | `f16` / `bf16` | 1D+2D，`vcvt + part` | `ON` | 窄化 float | `f32 -> f16` 已支持 |
+| `f32` | `f16` / `bf16` | 1D+2D，`vcvt + part` | `ON` | 窄化 float | `已支持` |
 | `f32` | `i32` | 1D+2D，`vcvt` | `ON` | 当前已先打通这一类普通路径 | `已支持` |
 | `f32` | `i64` | 1D+2D，`vcvt + part` | `ON` | | |
 | `f32` | `fp8_e4m3` / `fp8_e5m2` | 1D+2D，`vcvt + part` | `ON` | | |
