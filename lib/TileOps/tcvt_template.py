@@ -530,3 +530,30 @@ def template_tcvt_i16_to_f16(src: pto.Tile, dst: pto.Tile):
             )
             pto.vsts(converted, dst[row, col:], store_mask)
     return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
+        (pto.i16, pto.ui8),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+)
+def template_tcvt_i16_to_ui8(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    full_mask = pto.make_mask(pto.i16, pto.PAT.ALL)
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols
+        for col in range(0, valid_cols, pto.get_lanes(pto.i16)):
+            store_mask, remained = pto.make_mask(pto.i16, remained)
+            vec = pto.vlds(src[row, col:])
+            converted = pto.vcvt(
+                vec,
+                pto.ui8,
+                full_mask,
+                sat=pto.VcvtSatMode.SAT,
+                part=pto.VcvtPartMode.EVEN,
+            )
+            pto.vsts(converted, dst[row, col:], store_mask, dist=pto.VStoreDist.PK_B16)
+    return
