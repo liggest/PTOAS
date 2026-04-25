@@ -147,7 +147,7 @@ PTOAS + TileLib 已经全部打通。
 | 源类型 | 目标类型 | A5 helper 覆盖 | 备注 | TileLib是否支持 |
 |---|---|---|---|---|
 | `f32` | `f32` | 1D+2D，`vtrc` | 保持 `f32`，做 integer-valued float rounding | `已支持` |
-| `f16` | `i32` | 1D+2D，`vcvt + part` | | |
+| `f16` | `i32` | 1D+2D，`vcvt + part` | | `已支持` |
 | `i16` | `f16` | 1D+2D，`vcvt` | | |
 | `i32` | `f32` | 1D+2D，`vcvt` | | `已支持` |
 | `i64` | `f32` | 1D+2D，`vcvt + part` | | |
