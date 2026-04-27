@@ -73,6 +73,7 @@ std::unique_ptr<Pass> createInferPTOLayoutPass();
 std::unique_ptr<Pass> createPTOA5NormalizeTMovPass();
 LogicalResult validateIntToPtrUses(func::FuncOp func);
 
+std::unique_ptr<Pass> createPTOInferVPTOVecScopePass();
 std::unique_ptr<Pass> createPTOVPTOExpandBridgeOpsPass();
 std::unique_ptr<Pass> createPTOVPTOPtrBoundaryPass();
 std::unique_ptr<Pass> createVPTOPtrNormalizePass();

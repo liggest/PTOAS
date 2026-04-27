@@ -694,6 +694,9 @@ SetVector<Value> MemLivenessAnalysis::Union(SetVector<Value> set1,
 }
 
 SetVector<Value> MemLivenessAnalysis::GetAliasBuffers(Value aliasBuffer) {
+  if (!aliasBuffer)
+    return {};
+
   auto trueVar = buffer2AliasVec.find(aliasBuffer);
   if (trueVar != buffer2AliasVec.end()) {
     return trueVar->second;

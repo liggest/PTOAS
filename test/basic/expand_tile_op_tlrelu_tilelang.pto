@@ -18,8 +18,8 @@
 // pto.tlrelu should be lowered to vector-style VPTO IR.
 // CHECK: func.func @TLRelu_test
 // CHECK-NOT: pto.tlrelu ins
-// CHECK: pto.castptr
 // CHECK: pto.vecscope
+// CHECK: pto.castptr
 // CHECK: pto.vlds
 // CHECK: pto.vlrelu
 // CHECK: pto.vsts

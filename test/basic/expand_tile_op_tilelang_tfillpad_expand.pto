@@ -18,8 +18,8 @@
 // pto.tfillpad_expand should be lowered to vector-style VPTO IR.
 // CHECK: func.func @TFILLPAD_EXPAND
 // CHECK-NOT: pto.tfillpad_expand ins
-// CHECK: pto.castptr
 // CHECK: pto.vecscope
+// CHECK: pto.castptr
 // CHECK-DAG: pto.vdup
 // CHECK-DAG: pto.vlds
 // CHECK-DAG: pto.vsts

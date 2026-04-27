@@ -1495,6 +1495,9 @@ static LogicalResult prepareVPTOForEmission(ModuleOp module) {
   prepPM.enableVerifier();
   prepPM.addNestedPass<func::FuncOp>(createPTOVPTOExpandBridgeOpsPass());
   prepPM.addPass(createCSEPass());
+  prepPM.addNestedPass<func::FuncOp>(pto::createPTOInferVPTOVecScopePass());
+  prepPM.addPass(createCanonicalizerPass());
+  prepPM.addPass(createCSEPass());
   prepPM.addPass(pto::createPTOValidateVPTOEmissionIRPass());
   if (failed(applyConfiguredPassManagerCLOptions(prepPM,
                                                  "VPTO emission preparation")))

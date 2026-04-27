@@ -444,6 +444,30 @@ def PTOMaterializeTileHandles : Pass<"pto-materialize-tile-handles", "ModuleOp">
   ];
 }
 
+def PTOInferVPTOVecScope
+    : Pass<"pto-infer-vpto-vecscope", "func::FuncOp"> {
+  let summary =
+      "Infer missing pto.vecscope regions for VPTO vector operation clusters";
+  let description = [{
+    Runs near the VPTO emission boundary after inlining, canonicalization,
+    CSE, pointer normalization, and bridge-op expansion have exposed the final
+    SSA shape. The pass greedily clusters contiguous VPTO vector operations
+    into `pto.vecscope` regions while preserving explicit vector-scope carriers
+    and treating DMA/copy/sync, unresolved calls, terminators, and forbidden
+    operations as boundaries.
+
+    The inferred `pto.vecscope` form remains resultless. Values whose type is
+    `!pto.vreg`, `!pto.mask`, or `!pto.align` must not escape the inferred
+    scope.
+  }];
+  let constructor = "mlir::pto::createPTOInferVPTOVecScopePass()";
+  let dependentDialects = ["mlir::func::FuncDialect",
+                           "mlir::pto::PTODialect",
+                           "mlir::arith::ArithDialect",
+                           "mlir::memref::MemRefDialect",
+                           "mlir::scf::SCFDialect"];
+}
+
 def PTOValidateVPTOIR : Pass<"pto-validate-vpto-ir", "ModuleOp"> {
   let summary =
       "Validate authoring-stage VPTO legality before ptr-boundary canonicalization";

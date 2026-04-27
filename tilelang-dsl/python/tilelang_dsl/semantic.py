@@ -44,8 +44,6 @@ from .frontend_ast import (
 )
 from .support_matrix import (
     DEFERRED_PTO_SURFACES,
-    INFERRED_VECSCOPE_ACTIVITY_PTO_CALLS,
-    INFERRED_VECSCOPE_NEUTRAL_PTO_CALLS,
     advanced_mode_message,
     deferred_surface_message,
     unsupported_feature_message,
@@ -769,8 +767,6 @@ class _SemanticAnalyzer:
         self.node = node
         self._context_attrs = dict(node.context_attrs)
         self._counter = 0
-        self._disable_inference_depth = 0
-        self._has_explicit_vecscope = self._contains_explicit_vecscope(node.body)
         self._tile_specializations = {
             spec.name: spec for spec in node.tile_specializations
         }
@@ -872,29 +868,10 @@ class _SemanticAnalyzer:
         self,
         env: dict[str, SemanticBinding],
     ) -> tuple[tuple[SemanticStmt, ...], dict[str, SemanticBinding]]:
-        return self._analyze_body_with_inferred_kernel_vecscope(
+        return self._analyze_block(
             self.node.body,
             env,
             allow_outer_lookup=True,
-            has_explicit_vecscope=self._has_explicit_vecscope,
-        )
-
-    def _analyze_body_with_inferred_kernel_vecscope(
-        self,
-        statements: tuple[FrontendStmtNode, ...],
-        env: dict[str, SemanticBinding],
-        *,
-        allow_outer_lookup: bool,
-        has_explicit_vecscope: bool,
-    ) -> tuple[tuple[SemanticStmt, ...], dict[str, SemanticBinding]]:
-        # Inferred vecscope is built incrementally from left to right, splitting
-        # at hard boundaries (DMA/sync/UB-helper/control-flow) instead of
-        # wrapping the whole kernel body in one fallback region.
-        return self._analyze_block(
-            statements,
-            env,
-            allow_outer_lookup=allow_outer_lookup,
-            allow_inferred_vecscope=not has_explicit_vecscope,
         )
 
     def _parameter_type(self, param: Any) -> SemanticType:
@@ -1014,86 +991,17 @@ class _SemanticAnalyzer:
         env: dict[str, SemanticBinding],
         *,
         allow_outer_lookup: bool,
-        allow_inferred_vecscope: bool = True,
     ) -> tuple[tuple[SemanticStmt, ...], dict[str, SemanticBinding]]:
         current_env = dict(env)
         semantic_statements = []
-        index = 0
-        while index < len(statements):
-            if self._stmt_can_start_inferred_vecscope_run(
-                statements[index],
-                allow_inferred_vecscope=allow_inferred_vecscope,
-            ):
-                end = index + 1
-                while end < len(statements) and self._stmt_can_continue_inferred_vecscope_run(
-                    statements[end],
-                    allow_inferred_vecscope=allow_inferred_vecscope,
-                ):
-                    end += 1
-                run = statements[index:end]
-                if self._run_contains_vector_op(run):
-                    vecscope_stmt, current_env = self._analyze_inferred_vecscope(
-                        run,
-                        current_env,
-                        allow_outer_lookup=allow_outer_lookup,
-                    )
-                    semantic_statements.append(
-                        vecscope_stmt
-                    )
-                else:
-                    for stmt in run:
-                        emitted_stmts, current_env = self._analyze_stmt_or_inline(
-                            stmt,
-                            current_env,
-                            allow_outer_lookup=allow_outer_lookup,
-                        )
-                        semantic_statements.extend(emitted_stmts)
-                index = end
-                continue
-
+        for stmt in statements:
             emitted_stmts, current_env = self._analyze_stmt_or_inline(
-                statements[index],
+                stmt,
                 current_env,
                 allow_outer_lookup=allow_outer_lookup,
             )
             semantic_statements.extend(emitted_stmts)
-            index += 1
         return tuple(semantic_statements), current_env
-
-    def _stmt_can_start_inferred_vecscope_run(
-        self,
-        stmt: FrontendStmtNode,
-        *,
-        allow_inferred_vecscope: bool,
-    ) -> bool:
-        if not self._stmt_allows_inferred_vecscope(allow_inferred_vecscope):
-            return False
-        if self._frontend_stmt_is_vecscope_boundary(stmt):
-            return False
-        return self._frontend_stmt_can_live_in_inferred_vecscope(stmt)
-
-    def _stmt_can_continue_inferred_vecscope_run(
-        self,
-        stmt: FrontendStmtNode,
-        *,
-        allow_inferred_vecscope: bool,
-    ) -> bool:
-        if not self._stmt_allows_inferred_vecscope(allow_inferred_vecscope):
-            return False
-        if self._frontend_stmt_is_vecscope_boundary(stmt):
-            return False
-        return self._frontend_stmt_can_live_in_inferred_vecscope(
-            stmt
-        ) or self._frontend_stmt_is_scalar_vecscope_stmt(stmt)
-
-    def _stmt_allows_inferred_vecscope(self, allow_inferred_vecscope: bool) -> bool:
-        if self._has_explicit_vecscope:
-            return False
-        if self._disable_inference_depth > 0:
-            return False
-        if not allow_inferred_vecscope:
-            return False
-        return True
 
     def _analyze_stmt_or_inline(
         self,
@@ -1124,256 +1032,6 @@ class _SemanticAnalyzer:
             allow_outer_lookup=allow_outer_lookup,
         )
         return (semantic_stmt,), updated_env
-
-    def _wrap_kernel_body_in_inferred_vecscope(
-        self,
-        statements: tuple[SemanticStmt, ...],
-    ) -> tuple[SemanticStmt, ...]:
-        if not statements or not self._semantic_block_contains_vector_activity(statements):
-            return statements
-
-        body_end = len(statements)
-        while body_end > 0 and isinstance(statements[body_end - 1], SemanticReturnStmt):
-            body_end -= 1
-        if body_end == 0:
-            return statements
-
-        wrapped_body = SemanticVecscopeStmt(body=statements[:body_end])
-        return (wrapped_body, *statements[body_end:])
-
-    def _should_infer_vecscope(
-        self,
-        stmt: FrontendStmtNode,
-        *,
-        allow_inferred_vecscope: bool,
-    ) -> bool:
-        if self._has_explicit_vecscope:
-            return False
-        if self._disable_inference_depth > 0:
-            return False
-        if not allow_inferred_vecscope:
-            return False
-        if isinstance(stmt, FrontendForStmt):
-            return self._block_can_live_in_inferred_vecscope(stmt.body)
-        name = self._frontend_vector_call_name(stmt)
-        return name in INFERRED_VECSCOPE_ACTIVITY_PTO_CALLS
-
-    def _block_can_live_in_inferred_vecscope(
-        self,
-        statements: tuple[FrontendStmtNode, ...],
-    ) -> bool:
-        saw_vector_activity = False
-        for stmt in statements:
-            if self._frontend_stmt_is_vecscope_boundary(stmt):
-                return False
-            if self._frontend_stmt_can_live_in_inferred_vecscope(stmt):
-                saw_vector_activity = True
-                continue
-            if self._frontend_stmt_is_scalar_vecscope_stmt(stmt):
-                continue
-            return False
-        return saw_vector_activity
-
-    def _frontend_stmt_is_vecscope_boundary(self, stmt: FrontendStmtNode) -> bool:
-        if isinstance(stmt, FrontendStrictVecscopeStmt):
-            return True
-        if isinstance(stmt, FrontendVecscopeStmt):
-            return True
-        if isinstance(stmt, FrontendIfStmt):
-            return not stmt.is_constexpr
-        if (
-            isinstance(stmt, FrontendExprStmt)
-            and isinstance(stmt.expr, FrontendCallExpr)
-            and stmt.expr.namespace == "pto"
-            and stmt.expr.name in INFERRED_VECSCOPE_NEUTRAL_PTO_CALLS
-        ):
-            return False
-        return (
-            isinstance(stmt, FrontendExprStmt)
-            and (
-                self._is_dma_call(stmt.expr)
-                or self._is_low_level_dma_call(stmt.expr)
-                or self._is_sync_call(stmt.expr)
-                or self._is_ub_helper_call(stmt.expr)
-            )
-        )
-
-    def _constexpr_if_contains_vector_activity(self, stmt: FrontendIfStmt) -> bool:
-        if not stmt.is_constexpr:
-            return False
-        return self._run_contains_vector_op(stmt.then_body) or self._run_contains_vector_op(stmt.else_body)
-
-    def _frontend_stmt_can_live_in_inferred_vecscope(
-        self,
-        stmt: FrontendStmtNode,
-    ) -> bool:
-        if isinstance(stmt, FrontendForStmt):
-            return self._block_can_live_in_inferred_vecscope(stmt.body)
-        if isinstance(stmt, FrontendIfStmt):
-            return self._constexpr_if_contains_vector_activity(stmt)
-        return self._frontend_stmt_contains_vector_activity(stmt)
-
-    def _frontend_stmt_is_scalar_vecscope_stmt(
-        self,
-        stmt: FrontendStmtNode,
-    ) -> bool:
-        return isinstance(stmt, FrontendNoOpStmt) or isinstance(stmt, FrontendAssignStmt) or (
-            self._frontend_stmt_is_neutral_vecscope_stmt(stmt)
-        ) or (
-            isinstance(stmt, FrontendIfStmt) and stmt.is_constexpr
-        )
-
-    def _frontend_stmt_is_neutral_vecscope_stmt(
-        self,
-        stmt: FrontendStmtNode,
-    ) -> bool:
-        return (
-            isinstance(stmt, FrontendExprStmt)
-            and isinstance(stmt.expr, FrontendCallExpr)
-            and stmt.expr.namespace == "pto"
-            and stmt.expr.name in INFERRED_VECSCOPE_NEUTRAL_PTO_CALLS
-        )
-
-    def _frontend_stmt_contains_vector_activity(self, stmt: FrontendStmtNode) -> bool:
-        expr: FrontendExprNode | None = None
-        if isinstance(stmt, FrontendAssignStmt):
-            expr = stmt.value
-        elif isinstance(stmt, FrontendExprStmt):
-            expr = stmt.expr
-        if not isinstance(expr, FrontendCallExpr):
-            return False
-        return (
-            expr.namespace == "pto"
-            and expr.name in INFERRED_VECSCOPE_ACTIVITY_PTO_CALLS
-        )
-
-    def _run_contains_vector_op(self, statements: tuple[FrontendStmtNode, ...]) -> bool:
-        for stmt in statements:
-            if isinstance(stmt, FrontendForStmt) and self._block_can_live_in_inferred_vecscope(stmt.body):
-                return True
-            if isinstance(stmt, FrontendVecscopeStmt):
-                if self._run_contains_vector_op(stmt.body):
-                    return True
-                continue
-            if isinstance(stmt, FrontendIfStmt):
-                if self._constexpr_if_contains_vector_activity(stmt):
-                    return True
-                continue
-            if self._frontend_stmt_contains_vector_activity(stmt):
-                name = self._frontend_vector_call_name(stmt)
-                if name == "make_mask":
-                    continue
-                return True
-        return False
-
-    def _frontend_vector_call_name(self, stmt: FrontendStmtNode) -> str | None:
-        expr: FrontendExprNode | None = None
-        if isinstance(stmt, FrontendAssignStmt):
-            expr = stmt.value
-        elif isinstance(stmt, FrontendExprStmt):
-            expr = stmt.expr
-        if (
-            isinstance(expr, FrontendCallExpr)
-            and expr.namespace == "pto"
-        ):
-            return expr.name
-        return None
-
-    def _analyze_inferred_vecscope(
-        self,
-        statements: tuple[FrontendStmtNode, ...],
-        env: dict[str, SemanticBinding],
-        *,
-        allow_outer_lookup: bool,
-    ) -> tuple[SemanticVecscopeStmt, dict[str, SemanticBinding]]:
-        self._disable_inference_depth += 1
-        try:
-            body, updated_env = self._analyze_block_without_inference(
-                statements,
-                env,
-                allow_outer_lookup=allow_outer_lookup,
-            )
-        finally:
-            self._disable_inference_depth -= 1
-        return SemanticVecscopeStmt(body=body), updated_env
-
-    def _analyze_block_without_inference(
-        self,
-        statements: tuple[FrontendStmtNode, ...],
-        env: dict[str, SemanticBinding],
-        *,
-        allow_outer_lookup: bool,
-    ) -> tuple[tuple[SemanticStmt, ...], dict[str, SemanticBinding]]:
-        current_env = dict(env)
-        semantic_statements = []
-        for stmt in statements:
-            emitted_stmts, current_env = self._analyze_stmt_or_inline(
-                stmt,
-                current_env,
-                allow_outer_lookup=allow_outer_lookup,
-            )
-            semantic_statements.extend(emitted_stmts)
-        return tuple(semantic_statements), current_env
-
-    def _semantic_block_contains_vector_activity(
-        self,
-        statements: tuple[SemanticStmt, ...],
-    ) -> bool:
-        for stmt in statements:
-            if isinstance(stmt, SemanticVecscopeStmt):
-                return True
-            if isinstance(stmt, SemanticStrictVecscopeStmt):
-                return True
-            if isinstance(stmt, SemanticDmaLoadStmt):
-                return True
-            if isinstance(stmt, SemanticDmaStoreStmt):
-                return True
-            if isinstance(stmt, SemanticVectorStoreStmt):
-                return True
-            if isinstance(stmt, SemanticVScatterStmt):
-                return True
-            if isinstance(stmt, SemanticPredicateStoreStmt):
-                return True
-            if isinstance(stmt, SemanticAlignStoreStmt):
-                return True
-            if isinstance(stmt, SemanticDmaConfigStmt):
-                return True
-            if isinstance(stmt, SemanticDmaUnaryConfigStmt):
-                return True
-            if isinstance(stmt, SemanticLowLevelCopyStmt):
-                return True
-            if isinstance(stmt, SemanticAssignStmt) and self._expr_contains_vector_activity(stmt.value):
-                return True
-            if isinstance(stmt, SemanticExprStmt) and self._expr_contains_vector_activity(stmt.expr):
-                return True
-            if isinstance(stmt, SemanticForStmt) and self._semantic_block_contains_vector_activity(stmt.body):
-                return True
-            if isinstance(stmt, SemanticIfStmt) and (
-                self._semantic_block_contains_vector_activity(stmt.then_body)
-                or self._semantic_block_contains_vector_activity(stmt.else_body)
-            ):
-                return True
-        return False
-
-    def _expr_contains_vector_activity(self, expr: SemanticExpr) -> bool:
-        if isinstance(expr, SemanticCallExpr):
-            if (
-                expr.namespace == "pto"
-                and expr.name in INFERRED_VECSCOPE_ACTIVITY_PTO_CALLS
-            ):
-                return True
-            return any(self._expr_contains_vector_activity(arg) for arg in expr.args)
-        if isinstance(expr, SemanticBinaryExpr):
-            return self._expr_contains_vector_activity(expr.lhs) or self._expr_contains_vector_activity(expr.rhs)
-        if isinstance(expr, SemanticTupleExpr):
-            return any(self._expr_contains_vector_activity(element) for element in expr.elements)
-        if isinstance(expr, SemanticAttributeAccess):
-            return self._expr_contains_vector_activity(expr.base)
-        if isinstance(expr, SemanticSubscriptAccess):
-            return self._expr_contains_vector_activity(expr.base) or self._expr_contains_vector_activity(expr.index)
-        if isinstance(expr, SemanticTensorSliceExpr):
-            return self._expr_contains_vector_activity(expr.base)
-        return False
 
     def _analyze_stmt(
         self,
@@ -1556,13 +1214,10 @@ class _SemanticAnalyzer:
         self._hidden_parameters = []
         self._inline_proc_active_stack.append(key)
         try:
-            body, _ = self._analyze_body_with_inferred_kernel_vecscope(
+            body, _ = self._analyze_block(
                 inline_proc_node.body,
                 helper_env,
                 allow_outer_lookup=False,
-                has_explicit_vecscope=self._contains_explicit_vecscope(
-                    inline_proc_node.body
-                ),
             )
         finally:
             self._inline_proc_active_stack.pop()
@@ -1630,25 +1285,6 @@ class _SemanticAnalyzer:
 
     def _is_internal_inline_proc_context(self) -> bool:
         return any(key[0].startswith("__internal__::") for key in self._inline_proc_active_stack)
-
-    def _contains_explicit_vecscope(self, statements: tuple[FrontendStmtNode, ...]) -> bool:
-        for stmt in statements:
-            if isinstance(stmt, FrontendVecscopeStmt):
-                return True
-            if isinstance(stmt, FrontendForStmt):
-                if self._contains_explicit_vecscope(stmt.body):
-                    return True
-                continue
-            if isinstance(stmt, FrontendIfStmt):
-                if self._contains_explicit_vecscope(stmt.then_body):
-                    return True
-                if self._contains_explicit_vecscope(stmt.else_body):
-                    return True
-                continue
-            if isinstance(stmt, FrontendStrictVecscopeStmt):
-                if self._contains_explicit_vecscope(stmt.body):
-                    return True
-        return False
 
     def _analyze_explicit_vecscope(
         self,
@@ -2992,16 +2628,11 @@ class _SemanticAnalyzer:
             block_binding = self._make_binding(name, capture.type, "strict_vecscope_arg")
             scope_env[name] = block_binding
             block_arguments.append(block_binding)
-        self._disable_inference_depth += 1
-        try:
-            body, _ = self._analyze_block(
-                stmt.body,
-                scope_env,
-                allow_outer_lookup=False,
-                allow_inferred_vecscope=False,
-            )
-        finally:
-            self._disable_inference_depth -= 1
+        body, _ = self._analyze_block(
+            stmt.body,
+            scope_env,
+            allow_outer_lookup=False,
+        )
         return (
             SemanticStrictVecscopeStmt(
                 captures=captures,

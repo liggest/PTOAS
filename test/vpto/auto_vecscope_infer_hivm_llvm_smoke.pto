@@ -1,0 +1,30 @@
+// RUN: ptoas --pto-arch=a5 --pto-backend=vpto --vpto-emit-hivm-llvm %s -o - | FileCheck %s
+
+module attributes {pto.target_arch = "a5"} {
+  func.func @auto_vecscope_infer_hivm_llvm_smoke() attributes {pto.kernel_kind = #pto.kernel_kind<vector>} {
+    %c0 = arith.constant 0 : index
+    %c0_i64 = arith.constant 0 : i64
+    %c16_i32 = arith.constant 16 : i32
+    %cst = arith.constant 1.000000e+00 : f32
+    %ub = pto.castptr %c0_i64 : i64 -> !pto.ptr<f32, ub>
+
+    %store_mask = pto.pset_b32 "PAT_ALL" : !pto.mask<b32>
+    %active_mask, %remaining = pto.plt_b32 %c16_i32 : i32 -> !pto.mask<b32>, i32
+    %vec = pto.vlds %ub[%c0] : !pto.ptr<f32, ub> -> !pto.vreg<64xf32>
+    %sum = pto.vadds %vec, %cst, %active_mask : !pto.vreg<64xf32>, f32, !pto.mask<b32> -> !pto.vreg<64xf32>
+    pto.vsts %sum, %ub[%c0], %store_mask : !pto.vreg<64xf32>, !pto.ptr<f32, ub>, !pto.mask<b32>
+    return
+  }
+}
+
+// CHECK-LABEL: define void @auto_vecscope_infer_hivm_llvm_smoke
+// CHECK: call <256 x i1> @llvm.hivm.pset.b32
+// CHECK: call { <256 x i1>, i32 } @llvm.hivm.plt.b32.v300
+// CHECK: call <64 x float> @llvm.hivm.vldsx1.v64f32
+// CHECK: call <64 x float> @llvm.hivm.vadds.v64f32.x
+// CHECK: call void @llvm.hivm.vstsx1.v64f32
+// CHECK: br label %aivscope.latch
+// CHECK: aivscope.latch:
+// CHECK: br label %{{[0-9]+}}, !llvm.loop ![[LOOP:[0-9]+]]
+// CHECK: ![[LOOP]] = distinct !{![[LOOP]], ![[SCOPE:[0-9]+]]}
+// CHECK: ![[SCOPE]] = !{!"llvm.loop.aivector_scope"}

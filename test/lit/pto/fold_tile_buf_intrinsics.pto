@@ -21,7 +21,6 @@
 // CHECK: pto.bind_tile
 // CHECK: arith.constant 16 : index
 // CHECK: arith.constant 64 : index
-// CHECK: pto.vecscope
 // CHECK: pto.vlds
 // CHECK: pto.vadd
 // CHECK: pto.vsts

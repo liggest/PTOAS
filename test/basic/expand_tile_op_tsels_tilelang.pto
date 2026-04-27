@@ -18,8 +18,8 @@
 // pto.tsels should be lowered to vector-style VPTO IR.
 // CHECK: func.func @TSELS_test
 // CHECK-NOT: pto.tsels ins
-// CHECK: pto.castptr
 // CHECK: pto.vecscope
+// CHECK: pto.castptr
 // CHECK-DAG: pto.vdup
 // CHECK-DAG: pto.plds
 // CHECK-DAG: pto.vlds
