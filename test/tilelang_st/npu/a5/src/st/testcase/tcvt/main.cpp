@@ -203,6 +203,20 @@ void LaunchTCVT_ui32_to_ui16_2x128(void *src, void *dst, void *stream);
 void LaunchTCVT_ui32_to_ui16_4x65(void *src, void *dst, void *stream);
 void LaunchTCVT_ui32_to_ui16_4x200(void *src, void *dst, void *stream);
 void LaunchTCVT_ui32_to_ui16_1x129(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_f32_1x128(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_f32_2x64(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_f32_4x32(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_f32_2x128(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_f32_4x65(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_f32_4x200(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_f32_1x129(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_i32_1x128(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_i32_2x64(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_i32_4x32(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_i32_2x128(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_i32_4x65(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_i32_4x200(void *src, void *dst, void *stream);
+void LaunchTCVT_i64_to_i32_1x129(void *src, void *dst, void *stream);
 
 using LaunchFn = void (*)(void *, void *, void *);
 
@@ -405,6 +419,20 @@ static const TestCase kCases[] = {
     {"ui32_to_ui16_4x65", LaunchTCVT_ui32_to_ui16_4x65, 4, 128, 4, 128, sizeof(uint32_t), sizeof(uint16_t)},
     {"ui32_to_ui16_4x200", LaunchTCVT_ui32_to_ui16_4x200, 4, 256, 4, 256, sizeof(uint32_t), sizeof(uint16_t)},
     {"ui32_to_ui16_1x129", LaunchTCVT_ui32_to_ui16_1x129, 1, 256, 1, 256, sizeof(uint32_t), sizeof(uint16_t)},
+    {"i64_to_f32_1x128", LaunchTCVT_i64_to_f32_1x128, 1, 128, 1, 128, sizeof(int64_t), sizeof(float)},
+    {"i64_to_f32_2x64", LaunchTCVT_i64_to_f32_2x64, 2, 64, 2, 64, sizeof(int64_t), sizeof(float)},
+    {"i64_to_f32_4x32", LaunchTCVT_i64_to_f32_4x32, 4, 32, 4, 32, sizeof(int64_t), sizeof(float)},
+    {"i64_to_f32_2x128", LaunchTCVT_i64_to_f32_2x128, 2, 128, 2, 128, sizeof(int64_t), sizeof(float)},
+    {"i64_to_f32_4x65", LaunchTCVT_i64_to_f32_4x65, 4, 128, 4, 128, sizeof(int64_t), sizeof(float)},
+    {"i64_to_f32_4x200", LaunchTCVT_i64_to_f32_4x200, 4, 256, 4, 256, sizeof(int64_t), sizeof(float)},
+    {"i64_to_f32_1x129", LaunchTCVT_i64_to_f32_1x129, 1, 256, 1, 256, sizeof(int64_t), sizeof(float)},
+    {"i64_to_i32_1x128", LaunchTCVT_i64_to_i32_1x128, 1, 128, 1, 128, sizeof(int64_t), sizeof(int32_t)},
+    {"i64_to_i32_2x64", LaunchTCVT_i64_to_i32_2x64, 2, 64, 2, 64, sizeof(int64_t), sizeof(int32_t)},
+    {"i64_to_i32_4x32", LaunchTCVT_i64_to_i32_4x32, 4, 32, 4, 32, sizeof(int64_t), sizeof(int32_t)},
+    {"i64_to_i32_2x128", LaunchTCVT_i64_to_i32_2x128, 2, 128, 2, 128, sizeof(int64_t), sizeof(int32_t)},
+    {"i64_to_i32_4x65", LaunchTCVT_i64_to_i32_4x65, 4, 128, 4, 128, sizeof(int64_t), sizeof(int32_t)},
+    {"i64_to_i32_4x200", LaunchTCVT_i64_to_i32_4x200, 4, 256, 4, 256, sizeof(int64_t), sizeof(int32_t)},
+    {"i64_to_i32_1x129", LaunchTCVT_i64_to_i32_1x129, 1, 256, 1, 256, sizeof(int64_t), sizeof(int32_t)},
 };
 static constexpr size_t kNumCases = sizeof(kCases) / sizeof(kCases[0]);
 

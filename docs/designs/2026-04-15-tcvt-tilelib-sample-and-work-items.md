@@ -150,7 +150,7 @@ PTOAS + TileLib 已经全部打通。
 | `f16` | `i32` | 1D+2D，`vcvt + part` | | `已支持` |
 | `i16` | `f16` | 1D+2D，`vcvt` | | `已支持` |
 | `i32` | `f32` | 1D+2D，`vcvt` | | `已支持` |
-| `i64` | `f32` | 1D+2D，`vcvt + part` | | |
+| `i64` | `f32` | 1D+2D，`vcvt + part` | | `已支持` |
 | `bf16` | `fp4_e1m2x2` / `fp4_e2m1x2` | 1D+2D，专用 packed helper | 不是普通 `vcvt` 套餐，但不吃 `sat_mode` | |
 
 #### 3.2.3 不受 `round_mode` 影响，受 `sat_mode` 影响，不需要 `NonSatTorch`
@@ -163,7 +163,7 @@ PTOAS + TileLib 已经全部打通。
 | `i32` | `i16` | 1D+2D，`vcvt + part` | `OFF` | | `已支持` |
 | `i32` | `u16` / `u8` | 1D+2D，`vcvt + part` | `ON` | | `已支持 i32->u16` |
 | `u32` | `i16` / `u16` / `u8` | 1D+2D，`vcvt + part` | `ON` | | `已支持 u32->i16, u32->u16` |
-| `i64` | `i32` | 1D+2D，`vcvt + part` | `OFF` | | |
+| `i64` | `i32` | 1D+2D，`vcvt + part` | `OFF` | | `已支持` |
 
 #### 3.2.4 同时受 `round_mode` 和 `sat_mode` 影响，但不需要 `NonSatTorch`
 

@@ -536,6 +536,46 @@ def template_tcvt_i16_to_f16(src: pto.Tile, dst: pto.Tile):
     target="a5",
     op="pto.tcvt",
     dtypes=[
+        (pto.i64, pto.f32),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+)
+def template_tcvt_i64_to_f32(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    round_mode = pto.get_op_attr("round_mode", "RINT")
+    rnd = pto.VcvtRoundMode.R
+    if pto.constexpr(round_mode == "ROUND"):
+        rnd = pto.VcvtRoundMode.A
+    elif pto.constexpr(round_mode == "FLOOR"):
+        rnd = pto.VcvtRoundMode.F
+    elif pto.constexpr(round_mode == "CEIL"):
+        rnd = pto.VcvtRoundMode.C
+    elif pto.constexpr(round_mode == "TRUNC"):
+        rnd = pto.VcvtRoundMode.Z
+    elif pto.constexpr(round_mode == "ODD"):
+        rnd = pto.VcvtRoundMode.O
+
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols * 2  # i64 requires double the mask
+        full_mask, _ = pto.make_mask(pto.i64, remained)
+        for col in range(0, valid_cols, pto.get_lanes(pto.i64)):
+            store_mask, remained = pto.make_mask(pto.f32, remained)
+            vec = pto.vlds(src[row, col:])
+            converted = pto.vcvt(
+                vec,
+                pto.f32,
+                full_mask,
+                rnd=rnd,
+                part=pto.VcvtPartMode.EVEN,
+            )
+            pto.vsts(converted, dst[row, col:], store_mask, dist=pto.VStoreDist.PK_B64)
+    return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
         (pto.i16, pto.ui8),
     ],
     constraints=[_supports_basic_rowwise_tcvt],
@@ -664,6 +704,33 @@ def template_tcvt_ui32_to_ui16(src: pto.Tile, dst: pto.Tile):
                 part=pto.VcvtPartMode.EVEN,
             )
             pto.vsts(converted, dst[row, col:], store_mask, dist=pto.VStoreDist.PK_B32)
+    return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
+        (pto.i64, pto.i32),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+)
+def template_tcvt_i64_to_i32(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols * 2  # i64 requires double the mask
+        full_mask, _ = pto.make_mask(pto.i64, remained)
+        for col in range(0, valid_cols, pto.get_lanes(pto.i64)):
+            store_mask, remained = pto.make_mask(pto.i32, remained)
+            vec = pto.vlds(src[row, col:])
+            converted = pto.vcvt(
+                vec,
+                pto.i32,
+                full_mask,
+                sat=pto.VcvtSatMode.NOSAT,
+                part=pto.VcvtPartMode.EVEN,
+            )
+            pto.vsts(converted, dst[row, col:], store_mask, dist=pto.VStoreDist.PK_B64)
     return
 
 
