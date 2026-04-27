@@ -63,7 +63,7 @@ CASES = [
         "valid_shape": (2, 31),
         "eps": 1e-3,
     },
-    {
+{
         "name": "f32_1x8192_1x8192_1x8192_1x8192",
         "dtype": np.float32,
         "dst_tile": (1, 8192),

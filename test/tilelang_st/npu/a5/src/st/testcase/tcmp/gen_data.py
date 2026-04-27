@@ -33,23 +33,16 @@ def compute_cmp(a, b, mode):
         raise ValueError(f"Unknown cmp_mode: {mode}")
 
 
-ALIGN_STRIDE = 32
-
-
 def pack_predicate_mask(cmp_result):
     cmp_result = cmp_result.astype(np.uint8)
     shape = cmp_result.shape
-    packed_shape = (shape[0], ALIGN_STRIDE)
-    packed = np.zeros(packed_shape, dtype=np.uint8)
-    for row in range(shape[0]):
-        for vl in range(min(8, shape[1] // 8)):
-            lanes = cmp_result[row, vl*8:(vl+1)*8]
-            for j in range(8):
-                if lanes[j]:
-                    byte_idx = j // 2
-                    bit_pos = (j % 2) * 4
-                    packed[row, vl*4 + byte_idx] |= (1 << bit_pos)
-    return packed.view(np.int8)
+    bits_per_row = shape[1] // 8
+    packed = []
+    func_binar = lambda bits: sum(int(bit) * (2 ** i) for i, bit in enumerate(bits))
+    for row in cmp_result:
+        for i in range(bits_per_row):
+            packed.append(func_binar(row[i*8:i*8+8]))
+    return np.array(packed, dtype=np.uint8)
 
 
 for case in CASES:
@@ -69,4 +62,4 @@ for case in CASES:
     golden = pack_predicate_mask(cmp_result)
 
     save_case_data(case["name"], {"input1": input1, "input2": input2, "golden": golden})
-    print(f"[INFO] gen_data: {case['name']} shape={shape} valid_shape={valid_shape} dtype={dtype.__name__} out_dtype={out_dtype.__name__} cmp_mode={cmp_mode}")
+    print(f"[INFO] gen_data: {case['name']} shape={shape} valid_shape={valid_shape} dtype={dtype.__name__} golden_size={golden.size} cmp_mode={cmp_mode}")

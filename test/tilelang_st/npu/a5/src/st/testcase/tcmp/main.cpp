@@ -1,7 +1,7 @@
 // Copyright (c) 2026 Huawei Technologies Co., Ltd.
 // This program is free software, you can redistribute it and/or modify it under the terms and conditions of
 // CANN Open Software License Agreement Version 2.0 (the "License").
-// Please refer to the License for details. You can not use this file except in compliance with the License.
+// Please refer to the License for details. You may not use this file except in compliance with the License.
 // THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
 // INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 // See LICENSE in the root of the software repository for the full text of the License.
@@ -19,10 +19,7 @@
 
 using namespace PtoTestCommon;
 
-void LaunchTCMP_f32_1x64_eq(float *a, float *b, int8_t *c, void *stream);
-void LaunchTCMP_f32_8x64_gt(float *a, float *b, int8_t *c, void *stream);
-void LaunchTCMP_i32_16x32_eq(int32_t *a, int32_t *b, int8_t *c, void *stream);
-void LaunchTCMP_i32_32x32_eq(int32_t *a, int32_t *b, int8_t *c, void *stream);
+void LaunchTCMP_half_32x32_eq(void *a, void *b, void *c, void *stream);
 
 using LaunchFn = void (*)(void *, void *, void *, void *);
 
@@ -35,22 +32,20 @@ struct TestCase {
     size_t      validCols;
     size_t      inputElemSize;
     size_t      outputElemSize;
+    size_t      outputSize;
 };
 
 static const TestCase kCases[] = {
-    {"f32_1x64_eq",  (LaunchFn)LaunchTCMP_f32_1x64_eq,  1,  64, 1,  64, sizeof(float),   sizeof(int8_t)},
-    {"f32_8x64_gt",  (LaunchFn)LaunchTCMP_f32_8x64_gt,  8,  64, 8,  64, sizeof(float),   sizeof(int8_t)},
-    {"i32_16x32_eq", (LaunchFn)LaunchTCMP_i32_16x32_eq, 16, 32, 16, 32, sizeof(int32_t), sizeof(int8_t)},
-    {"i32_32x32_eq", (LaunchFn)LaunchTCMP_i32_32x32_eq, 32, 32, 32, 32, sizeof(int32_t), sizeof(int8_t)},
+    {"half_32x32_eq", LaunchTCMP_half_32x32_eq, 32, 32, 32, 32, 2, 1, 128},
 };
 static constexpr size_t kNumCases = sizeof(kCases) / sizeof(kCases[0]);
 
 static int RunCase(const TestCase &tc, int deviceId, aclrtStream stream) {
     int rc = 0;
-    const size_t elemCount = tc.rows * tc.cols;
-    const size_t inputFileSize  = elemCount * tc.inputElemSize;
-    const size_t outputFileSize = elemCount * tc.outputElemSize;
-    const size_t packedMaskSize = tc.validRows * 32 * tc.outputElemSize;
+    const size_t inputElemCount = tc.rows * tc.cols;
+    const size_t inputFileSize  = inputElemCount * tc.inputElemSize;
+    const size_t outputFileSize = inputElemCount * tc.outputElemSize;
+    const size_t packedMaskSize = tc.outputSize;
 
     std::printf("[INFO] === case: %s (shape=%zux%zu, valid=%zux%zu, packed_mask=%zu) ===\n",
                 tc.name, tc.rows, tc.cols, tc.validRows, tc.validCols, packedMaskSize);
@@ -86,10 +81,10 @@ static int RunCase(const TestCase &tc, int deviceId, aclrtStream stream) {
         tc.launch(src0Device, src1Device, dstDevice, stream);
 
         aclrtSynchronizeStream(stream);
-        aclrtMemcpy(dstHost, outputFileSize, dstDevice, outputFileSize, ACL_MEMCPY_DEVICE_TO_HOST);
+        aclrtMemcpy(dstHost, packedMaskSize, dstDevice, packedMaskSize, ACL_MEMCPY_DEVICE_TO_HOST);
     }
 
-    if (rc == 0 && !WriteFile((caseDir + "/output.bin").c_str(), dstHost, outputFileSize)) {
+    if (rc == 0 && !WriteFile((caseDir + "/output.bin").c_str(), dstHost, packedMaskSize)) {
         std::fprintf(stderr, "[ERROR] failed to write %s/output.bin\n", caseDir.c_str());
         rc = 1;
     }

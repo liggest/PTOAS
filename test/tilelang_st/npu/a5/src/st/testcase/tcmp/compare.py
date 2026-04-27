@@ -17,9 +17,6 @@ from cases import CASES
 from st_common import result_cmp, style_fail, style_pass, validate_cases
 
 
-ALIGN_STRIDE = 32
-
-
 def main():
     validate_cases(CASES)
     case_filter = sys.argv[1] if len(sys.argv) > 1 else None
@@ -33,14 +30,12 @@ def main():
         shape = case["shape"]
         out_dtype = case["out_dtype"]
         vr, vc = case["valid_shape"]
-        packed_shape = (vr, ALIGN_STRIDE)
-        packed_size = vr * ALIGN_STRIDE
+        packed_size = vr * vc // 8
 
-        golden = np.fromfile(os.path.join(case_dir, "golden.bin"), dtype=out_dtype).reshape(packed_shape)
-        output_full = np.fromfile(os.path.join(case_dir, "output.bin"), dtype=out_dtype)
-        output = output_full[:packed_size].reshape(packed_shape)
+        golden = np.fromfile(os.path.join(case_dir, "golden.bin"), dtype=out_dtype)
+        output = np.fromfile(os.path.join(case_dir, "output.bin"), dtype=out_dtype)
 
-        ok = result_cmp(golden, output, case["eps"])
+        ok = result_cmp(golden[:packed_size], output[:packed_size], case["eps"])
         if ok:
             print(style_pass(f"[INFO] {case['name']}: compare passed"))
         else:
