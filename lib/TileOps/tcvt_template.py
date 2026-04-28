@@ -426,6 +426,43 @@ def template_tcvt_si8_to_si16(src: pto.Tile, dst: pto.Tile):
     target="a5",
     op="pto.tcvt",
     dtypes=[
+        (pto.si8, pto.i32),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+    advanced=True,
+)
+def template_tcvt_si8_to_i32(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    b8_mask = pto.make_mask(pto.ui8, pto.PAT.ALL)
+    v_zero = pto.vdup(pto.ui8(0), b8_mask)
+    lanes_i32 = pto.get_lanes(pto.i32)
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols
+        if pto.constexpr(valid_cols > lanes_i32):
+            next_remained = valid_cols - lanes_i32
+        else:
+            next_remained = 0
+        for col in range(0, valid_cols, pto.get_lanes(pto.i16)):
+            mask_b16_cur, remained = pto.make_mask(pto.i16, remained)
+            mask_b16_next, next_remained = pto.make_mask(pto.i16, next_remained)
+            mask_b32_cur = pto.punpack(mask_b16_cur, pto.PredicatePart.LOWER)
+            mask_b32_next = pto.punpack(mask_b16_next, pto.PredicatePart.LOWER)
+            vec_si8_0 = pto.vlds(src[row, col:], dist=pto.VLoadDist.UNPK_B8)
+            vec_ui8_0 = pto.vbitcast(vec_si8_0, pto.ui8)
+            vec_ui8_1, vec_ui8_2 = pto.vintlv(vec_ui8_0, v_zero)
+            vec_si8_1 = pto.vbitcast(vec_ui8_1, pto.si8)
+            vec_si8_2 = pto.vbitcast(vec_ui8_2, pto.si8)
+            output_0 = pto.vcvt(vec_si8_1, pto.i32, b8_mask, part=pto.VcvtPartMode.P0)
+            output_1 = pto.vcvt(vec_si8_2, pto.i32, b8_mask, part=pto.VcvtPartMode.P0)
+            pto.vsts(output_0, dst[row, col:], mask_b32_cur, dist=pto.VStoreDist.NORM_B32)
+            pto.vsts(output_1, dst[row, col + lanes_i32:], mask_b32_next, dist=pto.VStoreDist.NORM_B32)
+    return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
         (pto.f32, pto.f32),
     ],
     constraints=[_supports_basic_rowwise_tcvt],
