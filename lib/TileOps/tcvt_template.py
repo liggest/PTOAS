@@ -1027,3 +1027,174 @@ def template_tcvt_f16_to_i16(src: pto.Tile, dst: pto.Tile):
             )
             pto.vsts(vec_i16, dst[row, col:], store_mask, dist=pto.VStoreDist.PK_B32)
     return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
+        (pto.f16, pto.si8),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+)
+def template_tcvt_f16_to_si8(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    round_mode = pto.get_op_attr("round_mode", "RINT")
+    rnd = pto.VcvtRoundMode.R
+    if pto.constexpr(round_mode == "ROUND"):
+        rnd = pto.VcvtRoundMode.A
+    elif pto.constexpr(round_mode == "FLOOR"):
+        rnd = pto.VcvtRoundMode.F
+    elif pto.constexpr(round_mode == "CEIL"):
+        rnd = pto.VcvtRoundMode.C
+    elif pto.constexpr(round_mode == "TRUNC"):
+        rnd = pto.VcvtRoundMode.Z
+    elif pto.constexpr(round_mode == "ODD"):
+        rnd = pto.VcvtRoundMode.O
+
+    lanes_f16 = pto.get_lanes(pto.f16)
+    pg = pto.make_mask(pto.f16, pto.PAT.ALL)
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols
+        for col in range(0, valid_cols, lanes_f16):
+            full_mask, _ = pto.make_mask(pto.f16, lanes_f16)
+            store_mask, remained = pto.make_mask(pto.f16, remained)
+            vec_f16 = pto.vlds(src[row, col:])
+            vec_i16 = pto.vcvt(
+                vec_f16,
+                pto.i16,
+                full_mask,
+                rnd=rnd,
+                sat=pto.VcvtSatMode.NOSAT,
+            )
+            v_mask = pto.vdup(pto.i16(255), pg)
+            vec_i16_and = pto.vand(vec_i16, v_mask, store_mask)
+            vec_f16_temp = pto.vcvt(
+                vec_i16_and,
+                pto.f16,
+                full_mask,
+                rnd=rnd,
+            )
+            vec_si8 = pto.vcvt(
+                vec_f16_temp,
+                pto.si8,
+                full_mask,
+                rnd=rnd,
+                sat=pto.VcvtSatMode.NOSAT,
+                part=pto.VcvtPartMode.EVEN,
+            )
+            pto.vsts(vec_si8, dst[row, col:], store_mask, dist=pto.VStoreDist.PK_B16)
+    return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
+        (pto.i32, pto.ui8),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+    advanced=True,
+)
+def template_tcvt_i32_to_ui8(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    full_mask = pto.make_mask(pto.i32, pto.PAT.ALL)
+    idx_mask = pto.make_mask(pto.i16, pto.PAT.ALL)
+    v_idx = pto.vci(pto.i8(0), pto.OrderMode.ASC)
+    v_idx_i16 = pto.vbitcast(v_idx, pto.i16)
+    v_idx_i16 = pto.vmuls(v_idx_i16, pto.i16(4), idx_mask)
+    v_idx_ui8 = pto.vbitcast(v_idx_i16, pto.ui8)
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols
+        for col in range(0, valid_cols, pto.get_lanes(pto.i32)):
+            store_mask, remained = pto.make_mask(pto.ui8, remained)
+            vec = pto.vlds(src[row, col:])
+            converted = pto.vcvt(
+                vec,
+                pto.ui8,
+                full_mask,
+                # rnd=pto.VcvtRoundMode.R,
+                sat=pto.VcvtSatMode.NOSAT,
+                part=pto.VcvtPartMode.P0,
+            )
+            result = pto.vselr(converted, v_idx_ui8)
+            pto.mem_bar(pto.BarrierType.VST_VST)
+            pto.vsts(result, dst[row, col:], store_mask, dist=pto.VStoreDist.NORM_B8)
+    return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
+        (pto.ui32, pto.ui8),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+    advanced=True,
+)
+def template_tcvt_ui32_to_ui8(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    full_mask = pto.make_mask(pto.i32, pto.PAT.ALL)
+    idx_mask = pto.make_mask(pto.i16, pto.PAT.ALL)
+    v_idx = pto.vci(pto.i8(0), pto.OrderMode.ASC)
+    v_idx_i16 = pto.vbitcast(v_idx, pto.i16)
+    v_idx_i16 = pto.vmuls(v_idx_i16, pto.i16(4), idx_mask)
+    v_idx_ui8 = pto.vbitcast(v_idx_i16, pto.ui8)
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols
+        for col in range(0, valid_cols, pto.get_lanes(pto.ui32)):
+            store_mask, remained = pto.make_mask(pto.ui8, remained)
+            vec = pto.vlds(src[row, col:])
+            converted = pto.vcvt(
+                vec,
+                pto.ui8,
+                full_mask,
+                # rnd=pto.VcvtRoundMode.R,
+                sat=pto.VcvtSatMode.NOSAT,
+                part=pto.VcvtPartMode.P0,
+            )
+            result = pto.vselr(converted, v_idx_ui8)
+            pto.mem_bar(pto.BarrierType.VST_VST)
+            pto.vsts(result, dst[row, col:], store_mask, dist=pto.VStoreDist.NORM_B8)
+    return
+
+
+@pto.vkernel(
+    target="a5",
+    op="pto.tcvt",
+    dtypes=[
+        (pto.f16, pto.ui8),
+    ],
+    constraints=[_supports_basic_rowwise_tcvt],
+)
+def template_tcvt_f16_to_ui8(src: pto.Tile, dst: pto.Tile):
+    valid_rows, valid_cols = dst.valid_shape
+    round_mode = pto.get_op_attr("round_mode", "RINT")
+    rnd = pto.VcvtRoundMode.R
+    if pto.constexpr(round_mode == "ROUND"):
+        rnd = pto.VcvtRoundMode.A
+    elif pto.constexpr(round_mode == "FLOOR"):
+        rnd = pto.VcvtRoundMode.F
+    elif pto.constexpr(round_mode == "CEIL"):
+        rnd = pto.VcvtRoundMode.C
+    elif pto.constexpr(round_mode == "TRUNC"):
+        rnd = pto.VcvtRoundMode.Z
+    elif pto.constexpr(round_mode == "ODD"):
+        rnd = pto.VcvtRoundMode.O
+
+    full_mask = pto.make_mask(pto.f16, pto.PAT.ALL)
+    for row in range(0, valid_rows, 1):
+        remained = valid_cols
+        for col in range(0, valid_cols, pto.get_lanes(pto.f16)):
+            store_mask, remained = pto.make_mask(pto.f16, remained)
+            vec = pto.vlds(src[row, col:])
+            converted = pto.vcvt(
+                vec,
+                pto.ui8,
+                full_mask,
+                rnd=rnd,
+                sat=pto.VcvtSatMode.NOSAT,
+                part=pto.VcvtPartMode.EVEN,
+            )
+            pto.vsts(converted, dst[row, col:], store_mask, dist=pto.VStoreDist.PK_B16)
+    return
