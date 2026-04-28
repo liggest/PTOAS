@@ -10,15 +10,24 @@
 # coding=utf-8
 
 import numpy as np
+import ml_dtypes
 
-from cases import CASES, bfloat16
+from cases import CASES
 from compare import normalize_dtype
 from st_common import save_case_data, setup_case_rng, validate_cases
 
 
+def is_sub_float(dtype):
+    return np.issubdtype(dtype, np.floating) or dtype == ml_dtypes.bfloat16
+
+
+def is_sub_int(dtype):
+    return np.issubdtype(dtype, np.integer)
+
+
 def _make_input_inner(src_dtype, shape):
     total = int(np.prod(shape))
-    float_types = (np.float32, np.float16, bfloat16)
+    float_types = (np.float32, np.float16, ml_dtypes.bfloat16)
     int8_like_types = (np.int8, )
 
     # Generate input data
@@ -72,15 +81,15 @@ def apply_round_mode(values, round_mode):
 
 
 def convert(values: np.ndarray, src_dtype, dst_dtype, round_mode=None):
-    is_float_src = np.issubdtype(src_dtype, np.floating)
-    is_int_dst = np.issubdtype(dst_dtype, np.integer)
+    is_float_src = is_sub_float(src_dtype)
+    is_int_dst = is_sub_int(dst_dtype)
     is_f32_to_f32 = src_dtype == np.float32 and dst_dtype == np.float32
     needs_rounding = is_float_src and (is_int_dst or is_f32_to_f32)
 
     if needs_rounding:
         values = apply_round_mode(values, round_mode or "RINT")
     
-    if np.issubdtype(dst_dtype, np.integer):
+    if is_int_dst:
         # Determine if this conversion has default saturation OFF (truncation) or ON (clamping)
         if default_saturation_off(src_dtype, dst_dtype):
             # OFF (truncation): bit extraction - wrap around using modulo
@@ -88,7 +97,7 @@ def convert(values: np.ndarray, src_dtype, dst_dtype, round_mode=None):
         else:
             # Saturation ON: clamp to range (widen to int64/float64 to preserve sign)
             return clamp_to_range_int(values, dst_dtype)
-    elif np.issubdtype(dst_dtype, np.floating):
+    elif is_sub_float(dst_dtype):
         return clamp_to_range_float(values, dst_dtype)
     else:
         return values.astype(dst_dtype)
@@ -117,15 +126,15 @@ def truncate_to_int(values: np.ndarray, dst_dtype):
 
 
 def clamp_to_range_int(values: np.ndarray, dst_dtype):
-    info = np.iinfo(dst_dtype)
-    is_int_type = np.issubdtype(values.dtype, np.integer)
+    info = ml_dtypes.iinfo(dst_dtype)
+    is_int_type = is_sub_int(values.dtype)
     temp_dtype = np.int64 if is_int_type else np.float64
     widened = values.astype(temp_dtype, copy=False)
     return np.clip(widened, info.min, info.max).astype(dst_dtype)
 
 
 def clamp_to_range_float(values: np.ndarray, dst_dtype):
-    info = np.finfo(dst_dtype)
+    info = ml_dtypes.finfo(dst_dtype)
     return np.clip(values, info.min, info.max).astype(dst_dtype)
 
 
