@@ -131,6 +131,7 @@ CASES = [
     *_make_cases(np.float16, np.int16),
     *_make_cases(bfloat16, np.float32),
     *_make_cases(bfloat16, np.float16),
+    *_make_cases(bfloat16, np.int32),
     *_make_cases(np.uint8, np.float16),
     *_make_cases(np.uint8, np.uint16),
     *_make_cases(np.int8, np.float16),

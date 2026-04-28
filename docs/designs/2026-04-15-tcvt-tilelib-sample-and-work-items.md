@@ -176,7 +176,7 @@ PTOAS + TileLib 已经全部打通。
 | `f32` | `i64` | 1D+2D，`vcvt + part` | `ON` | | `已支持` |
 | `f32` | `fp8_e4m3` / `fp8_e5m2` | 1D+2D，`vcvt + part` | `ON` | | |
 | `f16` | `u8` | 1D+2D，`vcvt + part` | `OFF` | | |
-| `bf16` | `i32` | 1D+2D，`vcvt + part` | `ON` | | |
+| `bf16` | `i32` | 1D+2D，`vcvt + part` | `ON` | | `已支持` |
 | `bf16` | `f16` | 1D+2D，`vcvt` | `ON` | helper 内部是 `SAT_ROUND` 顺序 | `已支持` |
 
 #### 3.2.5 同时受 `round_mode` 和 `sat_mode` 影响，且需要 `NonSatTorch`
