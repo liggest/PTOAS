@@ -20,6 +20,7 @@
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
+#include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Builders.h"
@@ -97,6 +98,10 @@ static bool shouldMaterializeOperand(Operation *owner) {
   if (!name.consume_front("pto."))
     return false;
   return name.starts_with("t");
+}
+
+static bool shouldMaterializeYieldOperand(Operation *owner) {
+  return isa<scf::YieldOp>(owner);
 }
 
 static bool hasStringAttr(ArrayRef<NamedAttribute> attrs, StringRef name,
@@ -584,6 +589,143 @@ static void emitMissingExplicitAddressError(Operation *owner, Value value) {
   diag << "; unsupported defining op is '" << def->getName() << "'";
 }
 
+static Value lookupMaterializedTileHandle(
+    Value value, DenseMap<Value, Value> &tileHandles) {
+  if (isa<TileBufType>(value.getType()))
+    return value;
+
+  auto it = tileHandles.find(value);
+  if (it == tileHandles.end())
+    return Value();
+  return it->second;
+}
+
+static FailureOr<bool>
+materializeSCFIfResults(ModuleOp module, DenseMap<Value, Value> &tileHandles) {
+  bool changed = false;
+
+  SmallVector<scf::IfOp, 8> ifOps;
+  module.walk([&](scf::IfOp ifOp) { ifOps.push_back(ifOp); });
+
+  for (scf::IfOp ifOp : llvm::reverse(ifOps)) {
+    if (ifOp.getNumResults() == 0)
+      continue;
+
+    auto thenYield = dyn_cast<scf::YieldOp>(ifOp.thenBlock()->getTerminator());
+    auto elseYield = dyn_cast<scf::YieldOp>(ifOp.elseBlock()->getTerminator());
+    if (!thenYield || !elseYield)
+      continue;
+
+    for (auto [idx, result] : llvm::enumerate(ifOp.getResults())) {
+      if (!isLocalTileMemRef(result.getType()))
+        continue;
+
+      Value thenTile =
+          lookupMaterializedTileHandle(thenYield.getOperand(idx), tileHandles);
+      Value elseTile =
+          lookupMaterializedTileHandle(elseYield.getOperand(idx), tileHandles);
+      if (!thenTile || !elseTile)
+        continue;
+
+      if (thenTile.getType() != elseTile.getType()) {
+        ifOp.emitOpError()
+            << "cannot materialize tile result #" << idx
+            << " because branch tile types differ: " << thenTile.getType()
+            << " vs " << elseTile.getType();
+        return failure();
+      }
+
+      Type tileTy = thenTile.getType();
+      thenYield->setOperand(idx, thenTile);
+      elseYield->setOperand(idx, elseTile);
+      result.setType(tileTy);
+      tileHandles[result] = result;
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+static FailureOr<bool>
+materializeSCFForResults(ModuleOp module, DenseMap<Value, Value> &tileHandles) {
+  bool changed = false;
+
+  SmallVector<scf::ForOp, 8> forOps;
+  module.walk([&](scf::ForOp forOp) { forOps.push_back(forOp); });
+
+  for (scf::ForOp forOp : llvm::reverse(forOps)) {
+    if (forOp.getNumResults() == 0)
+      continue;
+
+    auto yield = dyn_cast<scf::YieldOp>(forOp.getBody()->getTerminator());
+    if (!yield)
+      continue;
+
+    for (auto [idx, result] : llvm::enumerate(forOp.getResults())) {
+      if (!isLocalTileMemRef(result.getType()))
+        continue;
+
+      Value initTile =
+          lookupMaterializedTileHandle(forOp.getInitArgs()[idx], tileHandles);
+      if (!initTile)
+        continue;
+
+      BlockArgument iterArg = forOp.getRegionIterArg(idx);
+      Value yieldValue = yield.getOperand(idx);
+      Value yieldTile = lookupMaterializedTileHandle(yieldValue, tileHandles);
+      bool yieldIsIterArg = !yieldTile && yieldValue == iterArg;
+      if (yieldIsIterArg)
+        yieldTile = iterArg;
+      if (!yieldTile)
+        continue;
+
+      Type yieldTy = yieldIsIterArg ? initTile.getType() : yieldTile.getType();
+      if (initTile.getType() != yieldTy) {
+        forOp.emitOpError()
+            << "cannot materialize tile result #" << idx
+            << " because init/yield tile types differ: " << initTile.getType()
+            << " vs " << yieldTy;
+        return failure();
+      }
+
+      Type tileTy = initTile.getType();
+      forOp->setOperand(forOp.getNumControlOperands() + idx, initTile);
+      iterArg.setType(tileTy);
+      yield->setOperand(idx, yieldTile);
+      result.setType(tileTy);
+      tileHandles[iterArg] = iterArg;
+      tileHandles[result] = result;
+      changed = true;
+    }
+  }
+
+  return changed;
+}
+
+static LogicalResult
+materializeControlFlowTileResults(ModuleOp module,
+                                  DenseMap<Value, Value> &tileHandles) {
+  bool changed = false;
+  do {
+    changed = false;
+
+    FailureOr<bool> ifChanged =
+        materializeSCFIfResults(module, tileHandles);
+    if (failed(ifChanged))
+      return failure();
+    changed |= *ifChanged;
+
+    FailureOr<bool> forChanged =
+        materializeSCFForResults(module, tileHandles);
+    if (failed(forChanged))
+      return failure();
+    changed |= *forChanged;
+  } while (changed);
+
+  return success();
+}
+
 static Value getAllocValidOperand(TileBufType tileTy, Value operand,
                                   unsigned dim, OpBuilder &builder,
                                   Location loc) {
@@ -632,7 +774,8 @@ static Value materializeAnchorResult(Operation *anchor, Value anchoredValue,
 
   SmallVector<OpOperand *> usesToRewrite;
   for (OpOperand &use : anchoredValue.getUses()) {
-    if (shouldMaterializeOperand(use.getOwner()))
+    if (shouldMaterializeOperand(use.getOwner()) ||
+        shouldMaterializeYieldOperand(use.getOwner()))
       usesToRewrite.push_back(&use);
   }
 
@@ -717,6 +860,11 @@ struct PTOMaterializeTileHandlesPass
     }
 
     if (failedMaterialization) {
+      signalPassFailure();
+      return;
+    }
+
+    if (failed(materializeControlFlowTileResults(module, tileHandles))) {
       signalPassFailure();
       return;
     }

@@ -12193,6 +12193,13 @@ static AICORE inline void ptoas_auto_sync_tail(
         return opaqueTy.getValue().ends_with("*");
       return false;
     };
+    auto isEmitCTileLikeType = [](Type ty) {
+      auto opaqueTy = dyn_cast<emitc::OpaqueType>(ty);
+      if (!opaqueTy)
+        return false;
+      StringRef value = opaqueTy.getValue();
+      return value.contains("Tile<") || value.contains("ConvTile<");
+    };
 
     llvm::SmallVector<UnrealizedConversionCastOp> castsToErase;
     bool castCleanupFailed = false;
@@ -12226,6 +12233,16 @@ static AICORE inline void ptoas_auto_sync_tail(
       // bridge casts. At this stage, the producing value is already in the
       // lowered EmitC pointer form; keep it and drop the bridge cast.
       if (isEmitCPointerLikeType(inTy) && isa<BaseMemRefType>(outTy)) {
+        output.replaceAllUsesWith(input);
+        castsToErase.push_back(cast);
+        return;
+      }
+
+      // SCF structural type conversion may leave a bridge from the converted
+      // EmitC tile value back to the original pto.tile_buf type for PTO op
+      // users. After PTO ops are lowered, the EmitC tile value is the value we
+      // want to keep.
+      if (isEmitCTileLikeType(inTy) && isa<pto::TileBufType>(outTy)) {
         output.replaceAllUsesWith(input);
         castsToErase.push_back(cast);
         return;
