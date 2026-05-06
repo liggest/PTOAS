@@ -196,6 +196,7 @@ jobs:
             -DMLIR_ENABLE_BINDINGS_PYTHON=ON \
             -DMLIR_PYTHON_PACKAGE_DIR="${LLVM_DIR}/tools/mlir/python_packages/mlir_core" \
             -DCMAKE_INSTALL_PREFIX="${PTO_INSTALL_DIR}" \
+            -DCMAKE_CXX_FLAGS="-Werror" \
             -DCMAKE_BUILD_TYPE=Release
           ninja -C build ptoas
           ninja -C build ptobc
