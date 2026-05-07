@@ -438,10 +438,9 @@ def template_tcvt_si8_to_i32(src: pto.Tile, dst: pto.Tile):
     lanes_i32 = pto.get_lanes(pto.i32)
     for row in range(0, valid_rows, 1):
         remained = valid_cols
-        if pto.constexpr(valid_cols > lanes_i32):
+        next_remained = 0
+        if valid_cols > lanes_i32:
             next_remained = valid_cols - lanes_i32
-        else:
-            next_remained = 0
         for col in range(0, valid_cols, pto.get_lanes(pto.i16)):
             mask_b16_cur, remained = pto.make_mask(pto.i16, remained)
             mask_b16_next, next_remained = pto.make_mask(pto.i16, next_remained)
