@@ -181,6 +181,7 @@ set(ALL_TESTCASES
     trowmin
     trowprod
     trsqrt
+    tsort32
     tsqrt
     trowexpand
     trowexpandadd
