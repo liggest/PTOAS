@@ -1806,14 +1806,11 @@ void Solver::handleBarrierConflict(Occurrence *occ1, Occurrence *occ2,
     return;
   }
   if (options.isRegBasedArch) {
-    if (corePipeSrc.pipe == pto::PIPE::PIPE_V) {
+    if (corePipeSrc.pipe == pto::PIPE::PIPE_V ||
+        corePipeSrc.pipe == pto::PIPE::PIPE_M) {
       return;
     }
   }
-  if (corePipeSrc.pipe == pto::PIPE::PIPE_M) {
-    isUseless = true;
-  }
-
   auto *waitOcc = getBarrierWaitOcc(occ1, occ2);
 
   auto conflictPair = std::make_unique<ConflictPair>(
