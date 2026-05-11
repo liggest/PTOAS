@@ -3,8 +3,7 @@
 
 module attributes {"pto.target_arch" = "a5", pto.kernel_kind = #pto.kernel_kind<cube>} {
   func.func @acc_store_ub_probe(%src: !pto.ptr<f32, acc>,
-                                %dst: !pto.ptr<f32, ub>,
-                                %fpc: !pto.ptr<ui64, scaling>) {
+                                %dst: !pto.ptr<f32, ub>) {
     %c0_i64 = arith.constant 0 : i64
     %c1_i64 = arith.constant 1 : i64
     %c2_i64 = arith.constant 2 : i64
@@ -12,28 +11,24 @@ module attributes {"pto.target_arch" = "a5", pto.kernel_kind = #pto.kernel_kind<
     %c32_i64 = arith.constant 32 : i64
 
     pto.acc_store_ub %src, %dst, %c16_i64, %c16_i64, %c16_i64, %c32_i64,
-      %c0_i64, %c0_i64, %c0_i64, fpc(%fpc), %c0_i64, %c1_i64, nz2nd
-      loop3(%c1_i64, %c0_i64, %c32_i64)
+      %c2_i64, %c0_i64,
+      pre_relu(mode = normal_relu),
+      nz2nz(%c1_i64),
+      sat
       : !pto.ptr<f32, acc>, !pto.ptr<f32, ub>, i64, i64, i64, i64, i64, i64,
-        i64, fpc(!pto.ptr<ui64, scaling>), i64, i64, nz2nd, loop3 i64, i64, i64
-
-    pto.acc_store_ub %src, %dst, %c16_i64, %c16_i64, %c16_i64, %c32_i64,
-      %c0_i64, %c0_i64, %c0_i64, %c2_i64, %c0_i64, nz2nz, split(%c1_i64)
-      : !pto.ptr<f32, acc>, !pto.ptr<f32, ub>, i64, i64, i64, i64, i64, i64,
-        i64, i64, i64, nz2nz, split(i64)
+      i64
 
     return
   }
 }
 
 // ROUNDTRIP-LABEL: func.func @acc_store_ub_probe(
-// ROUNDTRIP: pto.acc_store_ub %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, fpc(%{{.*}}), %{{.*}}, %{{.*}}, nz2nd loop3(%{{.*}}, %{{.*}}, %{{.*}})
-// ROUNDTRIP: pto.acc_store_ub %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, nz2nz, split(%{{.*}})
+// ROUNDTRIP: pto.acc_store_ub %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, %{{.*}}, pre_relu(mode = normal_relu), nz2nz(%{{.*}}), sat
 
 // EXPAND-LABEL: func.func @acc_store_ub_probe(
-// EXPAND: %[[FPC:.*]] = pto.castptr %{{.*}} : !pto.ptr<ui64, scaling> -> i64
-// EXPAND: pto.set_fpc
+// EXPAND: pto.get_ctrl
+// EXPAND: pto.set_ctrl
 // EXPAND: pto.set_loop3_para
 // EXPAND: pto.set_channel_para
 // EXPAND: pto.copy_matrix_cc_to_ub
-// EXPAND: pto.copy_matrix_cc_to_ub
+// EXPAND: pto.set_ctrl

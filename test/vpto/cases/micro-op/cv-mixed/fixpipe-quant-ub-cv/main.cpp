@@ -40,7 +40,8 @@ using namespace PtoTestCommon;
   } while (0)
 
 void LaunchFixpipe_quant_ub_cv_kernel(__fp16 *src, __fp16 *id, uint32_t *fp,
-                                      __fp16 *out, void *stream);
+                                      __fp16 *outUb, __fp16 *outGm,
+                                      __fp16 *outL1, void *stream);
 
 int main() {
   constexpr size_t kSizeSrcElems = 50 * 64;
@@ -55,11 +56,15 @@ int main() {
   __fp16 *srcHost = nullptr;
   __fp16 *idHost = nullptr;
   uint32_t *fpHost = nullptr;
-  __fp16 *outHost = nullptr;
+  __fp16 *outUbHost = nullptr;
+  __fp16 *outGmHost = nullptr;
+  __fp16 *outL1Host = nullptr;
   __fp16 *srcDevice = nullptr;
   __fp16 *idDevice = nullptr;
   uint32_t *fpDevice = nullptr;
-  __fp16 *outDevice = nullptr;
+  __fp16 *outUbDevice = nullptr;
+  __fp16 *outGmDevice = nullptr;
+  __fp16 *outL1Device = nullptr;
 
   int rc = 0;
   bool aclInited = false;
@@ -79,11 +84,15 @@ int main() {
   ACL_CHECK(aclrtMallocHost((void **)&srcHost, kSizeSrc));
   ACL_CHECK(aclrtMallocHost((void **)&idHost, kSizeId));
   ACL_CHECK(aclrtMallocHost((void **)&fpHost, kSizeFp));
-  ACL_CHECK(aclrtMallocHost((void **)&outHost, kSizeOut));
+  ACL_CHECK(aclrtMallocHost((void **)&outUbHost, kSizeOut));
+  ACL_CHECK(aclrtMallocHost((void **)&outGmHost, kSizeOut));
+  ACL_CHECK(aclrtMallocHost((void **)&outL1Host, kSizeOut));
   ACL_CHECK(aclrtMalloc((void **)&srcDevice, kSizeSrc, ACL_MEM_MALLOC_HUGE_FIRST));
   ACL_CHECK(aclrtMalloc((void **)&idDevice, kSizeId, ACL_MEM_MALLOC_HUGE_FIRST));
   ACL_CHECK(aclrtMalloc((void **)&fpDevice, kSizeFp, ACL_MEM_MALLOC_HUGE_FIRST));
-  ACL_CHECK(aclrtMalloc((void **)&outDevice, kSizeOut, ACL_MEM_MALLOC_HUGE_FIRST));
+  ACL_CHECK(aclrtMalloc((void **)&outUbDevice, kSizeOut, ACL_MEM_MALLOC_HUGE_FIRST));
+  ACL_CHECK(aclrtMalloc((void **)&outGmDevice, kSizeOut, ACL_MEM_MALLOC_HUGE_FIRST));
+  ACL_CHECK(aclrtMalloc((void **)&outL1Device, kSizeOut, ACL_MEM_MALLOC_HUGE_FIRST));
 
   inputSize = kSizeId;
   FILE_CHECK(ReadFile("./v1.bin", inputSize, idHost, kSizeId) && inputSize == kSizeId,
@@ -95,32 +104,55 @@ int main() {
   FILE_CHECK(ReadFile("./v3.bin", inputSize, fpHost, kSizeFp) && inputSize == kSizeFp,
              "./v3.bin");
   inputSize = kSizeOut;
-  FILE_CHECK(ReadFile("./v4.bin", inputSize, outHost, kSizeOut) &&
+  FILE_CHECK(ReadFile("./v4.bin", inputSize, outUbHost, kSizeOut) &&
                  inputSize == kSizeOut,
              "./v4.bin");
+  inputSize = kSizeOut;
+  FILE_CHECK(ReadFile("./v5.bin", inputSize, outGmHost, kSizeOut) &&
+                 inputSize == kSizeOut,
+             "./v5.bin");
+  inputSize = kSizeOut;
+  FILE_CHECK(ReadFile("./v6.bin", inputSize, outL1Host, kSizeOut) &&
+                 inputSize == kSizeOut,
+             "./v6.bin");
 
   ACL_CHECK(aclrtMemcpy(srcDevice, kSizeSrc, srcHost, kSizeSrc, ACL_MEMCPY_HOST_TO_DEVICE));
   ACL_CHECK(aclrtMemcpy(idDevice, kSizeId, idHost, kSizeId, ACL_MEMCPY_HOST_TO_DEVICE));
   ACL_CHECK(aclrtMemcpy(fpDevice, kSizeFp, fpHost, kSizeFp, ACL_MEMCPY_HOST_TO_DEVICE));
-  ACL_CHECK(aclrtMemcpy(outDevice, kSizeOut, outHost, kSizeOut,
+  ACL_CHECK(aclrtMemcpy(outUbDevice, kSizeOut, outUbHost, kSizeOut,
+                        ACL_MEMCPY_HOST_TO_DEVICE));
+  ACL_CHECK(aclrtMemcpy(outGmDevice, kSizeOut, outGmHost, kSizeOut,
+                        ACL_MEMCPY_HOST_TO_DEVICE));
+  ACL_CHECK(aclrtMemcpy(outL1Device, kSizeOut, outL1Host, kSizeOut,
                         ACL_MEMCPY_HOST_TO_DEVICE));
 
-  LaunchFixpipe_quant_ub_cv_kernel(srcDevice, idDevice, fpDevice, outDevice, stream);
+  LaunchFixpipe_quant_ub_cv_kernel(srcDevice, idDevice, fpDevice, outUbDevice,
+                                   outGmDevice, outL1Device, stream);
   ACL_CHECK(aclrtSynchronizeStream(stream));
 
-  ACL_CHECK(aclrtMemcpy(outHost, kSizeOut, outDevice, kSizeOut,
+  ACL_CHECK(aclrtMemcpy(outUbHost, kSizeOut, outUbDevice, kSizeOut,
                         ACL_MEMCPY_DEVICE_TO_HOST));
-  FILE_CHECK(WriteFile("./v4.bin", outHost, kSizeOut), "./v4.bin");
+  ACL_CHECK(aclrtMemcpy(outGmHost, kSizeOut, outGmDevice, kSizeOut,
+                        ACL_MEMCPY_DEVICE_TO_HOST));
+  ACL_CHECK(aclrtMemcpy(outL1Host, kSizeOut, outL1Device, kSizeOut,
+                        ACL_MEMCPY_DEVICE_TO_HOST));
+  FILE_CHECK(WriteFile("./v4.bin", outUbHost, kSizeOut), "./v4.bin");
+  FILE_CHECK(WriteFile("./v5.bin", outGmHost, kSizeOut), "./v5.bin");
+  FILE_CHECK(WriteFile("./v6.bin", outL1Host, kSizeOut), "./v6.bin");
 
 cleanup:
   aclrtFree(srcDevice);
   aclrtFree(idDevice);
   aclrtFree(fpDevice);
-  aclrtFree(outDevice);
+  aclrtFree(outUbDevice);
+  aclrtFree(outGmDevice);
+  aclrtFree(outL1Device);
   aclrtFreeHost(srcHost);
   aclrtFreeHost(idHost);
   aclrtFreeHost(fpHost);
-  aclrtFreeHost(outHost);
+  aclrtFreeHost(outUbHost);
+  aclrtFreeHost(outGmHost);
+  aclrtFreeHost(outL1Host);
   if (stream != nullptr)
     aclrtDestroyStream(stream);
   if (deviceSet)

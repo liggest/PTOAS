@@ -39,12 +39,13 @@ struct MrgSortExecutedNumList {
 #endif
 
 extern "C" __global__ [aicore] void fixpipe_quant_ub_cv_kernel(
-    __gm__ __fp16 *a, __gm__ __fp16 *b, __gm__ uint32_t *fp, __gm__ __fp16 *out);
+    __gm__ __fp16 *a, __gm__ __fp16 *b, __gm__ uint32_t *fp,
+    __gm__ __fp16 *out_ub, __gm__ __fp16 *out_gm, __gm__ __fp16 *out_l1);
 
 void LaunchFixpipe_quant_ub_cv_kernel(__fp16 *a, __fp16 *b, uint32_t *fp,
-                                      __fp16 *out, void *stream) {
-  fixpipe_quant_ub_cv_kernel<<<1, nullptr, stream>>>((__gm__ __fp16 *)a,
-                                                     (__gm__ __fp16 *)b,
-                                                     (__gm__ uint32_t *)fp,
-                                                     (__gm__ __fp16 *)out);
+                                      __fp16 *outUb, __fp16 *outGm,
+                                      __fp16 *outL1, void *stream) {
+  fixpipe_quant_ub_cv_kernel<<<1, nullptr, stream>>>(
+      (__gm__ __fp16 *)a, (__gm__ __fp16 *)b, (__gm__ uint32_t *)fp,
+      (__gm__ __fp16 *)outUb, (__gm__ __fp16 *)outGm, (__gm__ __fp16 *)outL1);
 }

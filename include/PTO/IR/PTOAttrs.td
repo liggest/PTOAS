@@ -661,11 +661,95 @@ def PTO_ReduceOpAttr : EnumAttr<PTO_Dialect, PTO_ReduceOpEnum, "reduce_op"> {
 def PTO_ReluPreModeEnum : PTO_I32Enum<
   "ReluPreMode", "PTO TSTORE relu pre mode", [
     I32EnumAttrCase<"NoRelu", 0, "no_relu">,
-    I32EnumAttrCase<"NormalRelu", 1, "normal_relu">
+    I32EnumAttrCase<"NormalRelu", 1, "normal_relu">,
+    I32EnumAttrCase<"ScalarRelu", 2, "scalar_relu">,
+    I32EnumAttrCase<"VectorRelu", 3, "vector_relu">,
+    I32EnumAttrCase<"Pwl", 4, "pwl">
   ]>;
 
 def PTO_ReluPreModeAttr : EnumAttr<PTO_Dialect, PTO_ReluPreModeEnum, "relu_pre_mode"> {
   let summary = "TSTORE relu pre mode attribute";
+}
+
+def PTO_UnitFlagCtrlEnum : PTO_I32Enum<
+  "AccStoreUnitFlagCtrl", "PTO accumulator store unit-flag mode", [
+    I32EnumAttrCase<"Off", 0, "off">,
+    I32EnumAttrCase<"CheckOnly", 2, "check_only">,
+    I32EnumAttrCase<"CheckAndClear", 3, "check_and_clear">
+  ]>;
+
+def PTO_UnitFlagCtrlAttr : EnumAttr<PTO_Dialect, PTO_UnitFlagCtrlEnum, "unit_flag_ctrl"> {
+  let summary = "acc_store unit-flag control attribute";
+}
+
+def PTO_AccStoreQuantPreModeEnum : PTO_I32Enum<
+  "AccStoreQuantPreMode", "PTO accumulator store pre-quantization mode", [
+    I32EnumAttrCase<"NoConvert", 0, "no_convert">,
+    I32EnumAttrCase<"F32F16", 1, "f32_f16">,
+    I32EnumAttrCase<"QF322HIF8PreVec", 2, "qf322hif8_pre_vec">,
+    I32EnumAttrCase<"QF322HIF8PreScalar", 3, "qf322hif8_pre_scalar">,
+    I32EnumAttrCase<"QF322HIF8PreHybridVec", 4, "qf322hif8_pre_hybrid_vec">,
+    I32EnumAttrCase<"QF322HIF8PreHybridScalar", 5, "qf322hif8_pre_hybrid_scalar">,
+    I32EnumAttrCase<"DEQS32IntVec", 6, "deqs32_int_vec">,
+    I32EnumAttrCase<"DEQS32IntScalar", 7, "deqs32_int_scalar">,
+    I32EnumAttrCase<"REQ8Vec", 8, "req8_vec">,
+    I32EnumAttrCase<"REQ8Scalar", 9, "req8_scalar">,
+    I32EnumAttrCase<"DEQF16Vec", 10, "deqf16_vec">,
+    I32EnumAttrCase<"DEQF16Scalar", 11, "deqf16_scalar">,
+    I32EnumAttrCase<"QF322FP8PreVec", 12, "qf322fp8_pre_vec">,
+    I32EnumAttrCase<"QF322FP8PreScalar", 13, "qf322fp8_pre_scalar">,
+    I32EnumAttrCase<"QF322F32PreVec", 14, "qf322f32_pre_vec">,
+    I32EnumAttrCase<"QF322F32PreScalar", 15, "qf322f32_pre_scalar">,
+    I32EnumAttrCase<"F32BF16", 16, "f32_bf16">,
+    I32EnumAttrCase<"QF162B8PreVec", 17, "qf162b8_pre_vec">,
+    I32EnumAttrCase<"QF162B8PreScalar", 18, "qf162b8_pre_scalar">,
+    I32EnumAttrCase<"QF162S4PreVec", 19, "qf162s4_pre_vec">,
+    I32EnumAttrCase<"QF162S4PreScalar", 20, "qf162s4_pre_scalar">,
+    I32EnumAttrCase<"REQ4Vec", 21, "req4_vec">,
+    I32EnumAttrCase<"REQ4Scalar", 22, "req4_scalar">,
+    I32EnumAttrCase<"QF322B8PreVec", 23, "qf322b8_pre_vec">,
+    I32EnumAttrCase<"QF322B8PreScalar", 24, "qf322b8_pre_scalar">,
+    I32EnumAttrCase<"QF322S4PreVec", 25, "qf322s4_pre_vec">,
+    I32EnumAttrCase<"QF322S4PreScalar", 26, "qf322s4_pre_scalar">,
+    I32EnumAttrCase<"DEQS16Vec", 27, "deqs16_vec">,
+    I32EnumAttrCase<"DEQS16Scalar", 28, "deqs16_scalar">,
+    I32EnumAttrCase<"QF162S16PreVec", 29, "qf162s16_pre_vec">,
+    I32EnumAttrCase<"QF162S16PreScalar", 30, "qf162s16_pre_scalar">,
+    I32EnumAttrCase<"QF322F16PreVec", 31, "qf322f16_pre_vec">,
+    I32EnumAttrCase<"QF322F16PreScalar", 32, "qf322f16_pre_scalar">,
+    I32EnumAttrCase<"QF322BF16PreVec", 33, "qf322bf16_pre_vec">,
+    I32EnumAttrCase<"QF322BF16PreScalar", 34, "qf322bf16_pre_scalar">,
+    I32EnumAttrCase<"QS322BF16PreVec", 35, "qs322bf16_pre_vec">,
+    I32EnumAttrCase<"QS322BF16PreScalar", 36, "qs322bf16_pre_scalar">
+  ]>;
+
+def PTO_AccStoreQuantPreModeAttr : EnumAttr<PTO_Dialect, PTO_AccStoreQuantPreModeEnum, "quant_pre_mode"> {
+  let summary = "acc_store pre-quantization mode attribute";
+}
+
+def PTO_AccStoreAtomicTypeEnum : PTO_I32Enum<
+  "AccStoreAtomicType", "PTO accumulator store atomic type", [
+    I32EnumAttrCase<"F32", 1, "f32">,
+    I32EnumAttrCase<"F16", 2, "f16">,
+    I32EnumAttrCase<"S16", 3, "s16">,
+    I32EnumAttrCase<"S32", 4, "s32">,
+    I32EnumAttrCase<"S8", 5, "s8">,
+    I32EnumAttrCase<"BF16", 6, "bf16">
+  ]>;
+
+def PTO_AccStoreAtomicTypeAttr : EnumAttr<PTO_Dialect, PTO_AccStoreAtomicTypeEnum, "acc_store_atomic_type"> {
+  let summary = "acc_store atomic type attribute";
+}
+
+def PTO_AccStoreAtomicOpEnum : PTO_I32Enum<
+  "AccStoreAtomicOp", "PTO accumulator store atomic op", [
+    I32EnumAttrCase<"Add", 0, "add">,
+    I32EnumAttrCase<"Max", 1, "max">,
+    I32EnumAttrCase<"Min", 2, "min">
+  ]>;
+
+def PTO_AccStoreAtomicOpAttr : EnumAttr<PTO_Dialect, PTO_AccStoreAtomicOpEnum, "acc_store_atomic_op"> {
+  let summary = "acc_store atomic op attribute";
 }
 
 def PTO_AccStoreModeEnum : PTO_I32Enum<

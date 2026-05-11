@@ -865,32 +865,26 @@ _DMA_CALL_KEYWORDS: dict[str, frozenset[str]] = {
     "mad_mx_acc": frozenset({"unit_flag_ctrl", "disable_gemv"}),
     "mad_mx_bias": frozenset({"unit_flag_ctrl", "disable_gemv"}),
     "acc_store": frozenset(
-        {"unit_flag_ctrl", "quant_pre", "relu_pre_mode", "mode", "loop0_src_stride", "split", "loop3"}
+        {"mode", "loop0_src_stride", "split", "loop3"}
     ),
     "acc_store_gm": frozenset(
         {
-            "unit_flag_ctrl",
-            "quant_pre",
-            "relu_pre_mode",
-            "sid",
-            "l2_cache_ctrl",
             "mode",
             "loop0_src_stride",
             "split",
             "loop3",
+            "sid",
+            "l2_cache_ctrl",
         }
     ),
     "acc_store_ub": frozenset(
         {
-            "unit_flag_ctrl",
-            "quant_pre",
-            "relu_pre_mode",
-            "dual_dst_mode",
-            "sub_blockid",
             "mode",
             "loop0_src_stride",
             "channel_split_en",
             "loop3",
+            "dual_dst_mode",
+            "sub_blockid",
         }
     ),
 }

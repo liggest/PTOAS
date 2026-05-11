@@ -2765,6 +2765,16 @@ StringRef buildUnaryConfigCallee<pto::SetQuantPreOp>(MLIRContext *context) {
 }
 
 template <>
+StringRef buildUnaryConfigCallee<pto::SetReluAlphaOp>(MLIRContext *context) {
+  return StringAttr::get(context, "llvm.hivm.SET.RELU.ALPHA").getValue();
+}
+
+template <>
+StringRef buildUnaryConfigCallee<pto::SetFixClipReluOp>(MLIRContext *context) {
+  return StringAttr::get(context, "llvm.hivm.SET.FIX.CLIP.RELU").getValue();
+}
+
+template <>
 StringRef buildUnaryConfigCallee<pto::SetLoop2StrideOutToL1Op>(
     MLIRContext *context) {
   return StringAttr::get(context, "llvm.hivm.SET.LOOP2.STRIDE.OUTTOL1")
@@ -7401,6 +7411,8 @@ static void populateVPTOOpLoweringPatterns(VPTOTypeConverter &typeConverter,
                LowerUnaryI64ConfigOpPattern<pto::SetCtrlOp>,
                LowerUnaryConfigOpPattern<pto::SetMovPadValOp>,
                LowerUnaryI64ConfigOpPattern<pto::SetQuantPreOp>,
+               LowerUnaryI64ConfigOpPattern<pto::SetReluAlphaOp>,
+               LowerUnaryI64ConfigOpPattern<pto::SetFixClipReluOp>,
                LowerUnaryI64ConfigOpPattern<pto::SetLoop2StrideOutToL1Op>,
                LowerUnaryI64ConfigOpPattern<pto::SetLoop1StrideOutToL1Op>,
                LowerUnaryI64ConfigOpPattern<pto::SetLoopSizeOutToL1Op>,
@@ -7481,7 +7493,8 @@ static void configureVPTOOpLoweringTarget(ConversionTarget &target,
                       pto::SetLoop3ParaOp, pto::SetChannelParaOp,
                       pto::SetLoop2StrideOutToL1Op, pto::SetLoop1StrideOutToL1Op,
                       pto::SetLoopSizeOutToL1Op, pto::SetMte2NzParaOp,
-                      pto::SetPadValOutToL1Op, pto::SetFpcOp,
+                      pto::SetPadValOutToL1Op, pto::SetReluAlphaOp,
+                      pto::SetFixClipReluOp, pto::SetFpcOp,
                       pto::SetAtomicS32Op, pto::SetAtomicS8Op, pto::SetCtrlOp,
                       pto::SetMovPadValOp, pto::SetQuantPreOp>();
   target.addIllegalOp<pto::Sbitset0Op, pto::Sbitset1Op>();

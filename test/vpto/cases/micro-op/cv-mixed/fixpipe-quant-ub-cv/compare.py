@@ -34,7 +34,9 @@ def compare_bin(golden_path: str, output_path: str) -> bool:
 
 def main() -> None:
     strict = os.getenv("COMPARE_STRICT", "1") != "0"
-    ok = compare_bin("golden_v4.bin", "v4.bin")
+    ok = True
+    for index in range(4, 7):
+        ok = compare_bin(f"golden_v{index}.bin", f"v{index}.bin") and ok
     if not ok:
         if strict:
             print("[ERROR] compare failed")

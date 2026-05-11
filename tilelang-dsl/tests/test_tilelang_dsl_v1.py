@@ -2308,9 +2308,6 @@ class TileLangDSLDescriptorTests(unittest.TestCase):
                 16,
                 16,
                 16,
-                unit_flag_ctrl=1,
-                quant_pre=2,
-                relu_pre_mode=3,
                 mode=pto.FractalMode.NZ2NZ,
                 split=7,
                 sid=4,
@@ -2323,9 +2320,6 @@ class TileLangDSLDescriptorTests(unittest.TestCase):
                 16,
                 16,
                 16,
-                unit_flag_ctrl=1,
-                quant_pre=2,
-                relu_pre_mode=3,
                 mode=pto.FractalMode.NZ2ND,
                 dual_dst_mode=6,
                 sub_blockid=7,
@@ -2365,15 +2359,15 @@ class TileLangDSLDescriptorTests(unittest.TestCase):
         )
         self.assertRegex(
             text,
-            r"pto\.acc_store %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, nz2dn\(%[A-Za-z0-9_]+\) loop3\(%[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+\) : !pto\.ptr<f32, acc>, !pto\.ptr<f16, mat>, i64, i64, i64, i64, i64, i64, i64, loop3 i64, i64, i64, nz2dn\(i64\)",
+            r"pto\.acc_store %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, nz2dn\(%[A-Za-z0-9_]+\), loop3\(%[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+\) : !pto\.ptr<f32, acc>, !pto\.ptr<f16, mat>, i64, i64, i64, i64, i64, i64, i64, i64",
         )
         self.assertRegex(
             text,
-            r"pto\.acc_store_gm %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, nz2nz\(%[A-Za-z0-9_]+\) : !pto\.ptr<f32, acc>, !pto\.ptr<f16, gm>, i64, i64, i64, i64, i64, i64, i64, i64, i64, nz2nz\(i64\)",
+            r"pto\.acc_store_gm %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, nz2nz\(%[A-Za-z0-9_]+\) : !pto\.ptr<f32, acc>, !pto\.ptr<f16, gm>, i64, i64, i64, i64, i64, i64, i64",
         )
         self.assertRegex(
             text,
-            r"pto\.acc_store_ub %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, nz2nd : !pto\.ptr<f32, acc>, !pto\.ptr<f32, ub>, i64, i64, i64, i64, i64, i64, i64, i64, i64, nz2nd",
+            r"pto\.acc_store_ub %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, %[A-Za-z0-9_]+, nz2nd : !pto\.ptr<f32, acc>, !pto\.ptr<f32, ub>, i64, i64, i64, i64, i64, i64",
         )
         self.assertNotIn("copy_gm_to_cbuf", text)
         self.assertNotIn("copy_matrix_cc_to_gm", text)

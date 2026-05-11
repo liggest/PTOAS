@@ -358,7 +358,6 @@ MX 模式 L1→L0A/L0B 搬运，参数同非 MX 版本。
 pto.acc_store(src: pto.ptr<T, acc>, dst: pto.ptr<T, mat>,
               m: int, n: int,
               src_stride: int, dst_stride: int,
-              unit_flag_ctrl: int = 0, quant_pre: int = 0, relu_pre_mode: int = 0,
               mode: str = "nz2nd",  # "nz2nd" | "nz2dn" | "nz2nz"
               loop0_src_stride: int | None = None,   # mode="nz2dn" 时需要
               split: int | None = None,              # mode="nz2nz" 时需要
@@ -371,7 +370,6 @@ pto.acc_store(src: pto.ptr<T, acc>, dst: pto.ptr<T, mat>,
 pto.acc_store_gm(src: pto.ptr<T, acc>, dst: pto.ptr<T, gm>,
                  m: int, n: int,
                  src_stride: int, dst_stride: int,
-                 unit_flag_ctrl: int = 0, quant_pre: int = 0, relu_pre_mode: int = 0,
                  sid: int = 0, l2_cache_ctrl: int = 0,
                  mode: str = "nz2nd",
                  loop0_src_stride: int | None = None,
@@ -385,7 +383,6 @@ pto.acc_store_gm(src: pto.ptr<T, acc>, dst: pto.ptr<T, gm>,
 pto.acc_store_ub(src: pto.ptr<T, acc>, dst: pto.ptr<T, ub>,
                  m: int, n: int,
                  src_stride: int, dst_stride: int,
-                 unit_flag_ctrl: int = 0, quant_pre: int = 0, relu_pre_mode: int = 0,
                  dual_dst_mode: int = 0, sub_blockid: int = 0,
                  mode: str = "nz2nd",
                  loop0_src_stride: int | None = None,

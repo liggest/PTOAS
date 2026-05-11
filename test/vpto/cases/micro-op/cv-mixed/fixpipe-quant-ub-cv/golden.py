@@ -40,10 +40,12 @@ def qf322f16_pre(data: np.ndarray, quant: np.ndarray) -> np.ndarray:
     for row in range(data.shape[0]):
         for col in range(data.shape[1]):
             m1, _, _ = extract_quant_params(quant[col])
-            scaled = np.array([data[row, col].astype(np.float32) * np.float32(m1)],
-                              dtype=np.float32)
-            result[row, col] = (scaled.view(np.uint32) >> np.uint32(16)).astype(
-                np.uint16).view(np.float16)[0]
+            scaled = data[row, col].astype(np.float32) * np.float32(m1)
+            result[row, col] = np.clip(
+                scaled,
+                np.finfo(np.float16).min,
+                np.finfo(np.float16).max,
+            ).astype(np.float16)
     return result
 
 
@@ -61,7 +63,6 @@ def generate(output_dir: Path, seed: int) -> None:
     b = (np.arange(K * N, dtype=np.float32).reshape(K, N) * np.float32(0.005) +
          np.float32(0.25)).astype(np.float16)
     fp = make_vector_quant_params(FP_QUANT_ELEMS)
-    out = np.zeros((M, N), dtype=np.float16)
     matmul = np.zeros((M, N), dtype=np.float32)
     a32 = a.astype(np.float32)
     b32 = b.astype(np.float32)
@@ -73,8 +74,9 @@ def generate(output_dir: Path, seed: int) -> None:
     a.reshape(-1).tofile(output_dir / "v1.bin")
     b.reshape(-1).tofile(output_dir / "v2.bin")
     fp.view(np.uint32).reshape(FP_TRANSPORT_ELEMS).tofile(output_dir / "v3.bin")
-    out.reshape(-1).tofile(output_dir / "v4.bin")
-    golden.reshape(-1).tofile(output_dir / "golden_v4.bin")
+    for index in range(4, 7):
+      np.zeros((M, N), dtype=np.float16).reshape(-1).tofile(output_dir / f"v{index}.bin")
+      golden.reshape(-1).tofile(output_dir / f"golden_v{index}.bin")
 
 
 def main() -> None:

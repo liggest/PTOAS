@@ -70,9 +70,9 @@ TileLang DSL cube public surface MUST 至少包含以下数据搬运 op：
 
 TileLang DSL cube public surface MUST 至少包含以下结果写回 op：
 
-- `pto.acc_store(src, dst, m, n, src_stride, dst_stride, *, unit_flag_ctrl=0, quant_pre=0, relu_pre_mode=0, mode: FractalMode = FractalMode.NZ2ND, loop0_src_stride=None, split=None, loop3=None)`
-- `pto.acc_store_gm(src, dst, m, n, src_stride, dst_stride, *, unit_flag_ctrl=0, quant_pre=0, relu_pre_mode=0, sid=0, l2_cache_ctrl=0, mode: FractalMode = FractalMode.NZ2ND, loop0_src_stride=None, split=None, loop3=None)`
-- `pto.acc_store_ub(src, dst, m, n, src_stride, dst_stride, *, unit_flag_ctrl=0, quant_pre=0, relu_pre_mode=0, dual_dst_mode=0, sub_blockid=0, mode: FractalMode = FractalMode.NZ2ND, loop0_src_stride=None, channel_split_en=None, loop3=None)`
+- `pto.acc_store(src, dst, m, n, src_stride, dst_stride, *, mode: FractalMode = FractalMode.NZ2ND, loop0_src_stride=None, split=None, loop3=None)`
+- `pto.acc_store_gm(src, dst, m, n, src_stride, dst_stride, *, sid=0, l2_cache_ctrl=0, mode: FractalMode = FractalMode.NZ2ND, loop0_src_stride=None, split=None, loop3=None)`
+- `pto.acc_store_ub(src, dst, m, n, src_stride, dst_stride, *, dual_dst_mode=0, sub_blockid=0, mode: FractalMode = FractalMode.NZ2ND, loop0_src_stride=None, channel_split_en=None, loop3=None)`
 
 这些 op MUST 接受 `pto.FractalMode.NZ2ND`、`pto.FractalMode.NZ2DN`、`pto.FractalMode.NZ2NZ` 三类 mode，并保留 mode-dependent keyword contract。
 

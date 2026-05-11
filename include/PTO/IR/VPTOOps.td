@@ -46,6 +46,10 @@ def PTO_ScalingPtrType : Type<
   "scaling !pto.ptr<ui64> type">;
 def PTO_BufferLikeType : AnyTypeOf<[AnyMemRef, PTO_BufferType],
                                     "memref or pointer-like buffer type">;
+def PTO_AccStorePayloadType : AnyTypeOf<[AnySignlessInteger, AnyFloat, PTO_ScalingPtrType],
+                                        "signless integer, float scalar, or scaling !pto.ptr<ui64>">;
+def PTO_AccStoreClipPayloadType : AnyTypeOf<[AnyInteger, AnyFloat],
+                                            "integer or float clip scalar">;
 
 def TensorViewAddrOp : PTO_Op<"tensor_view_addr", [Pure]> {
   let summary = "Extract address from a tensor view.";
@@ -231,6 +235,8 @@ def PTO_SetCtrlOp : PTO_UnaryI64ConfigOp<"set_ctrl">;
 def PTO_Sbitset0Op : PTO_BinaryI64PureOp<"sbitset0">;
 def PTO_Sbitset1Op : PTO_BinaryI64PureOp<"sbitset1">;
 def PTO_SetQuantPreOp : PTO_UnaryI64ConfigOp<"set_quant_pre">;
+def PTO_SetReluAlphaOp : PTO_UnaryI64ConfigOp<"set_relu_alpha">;
+def PTO_SetFixClipReluOp : PTO_UnaryI64ConfigOp<"set_fix_clip_relu">;
 def PTO_SetFpcOp : PTO_UnaryI64ConfigOp<"set_fpc">;
 def PTO_SetAtomicS32Op : PTO_NullaryConfigOp<"set_atomic_s32">;
 def PTO_SetAtomicS8Op : PTO_NullaryConfigOp<"set_atomic_s8">;
@@ -239,8 +245,8 @@ def PTO_CopyGmToUbufOp : PTO_Op<"copy_gm_to_ubuf", [
     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>
   ]> {
   let arguments = (ins
-    PTO_BufferType:$source,
-    PTO_BufferType:$destination,
+    PTO_BufferLikeType:$source,
+    PTO_BufferLikeType:$destination,
     I64:$sid,
     I64:$n_burst,
     I64:$len_burst,
@@ -270,8 +276,8 @@ def PTO_DmaLoadOp : PTO_Op<"dma_load", [
     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>
   ]> {
   let arguments = (ins
-    PTO_BufferType:$source,
-    PTO_BufferType:$destination,
+    PTO_BufferLikeType:$source,
+    PTO_BufferLikeType:$destination,
     I64:$l2_cache_ctl,
     I64:$len_burst,
     I64:$n_burst,
@@ -1734,8 +1740,8 @@ def PTO_CopyUbufToGmOp : PTO_Op<"copy_ubuf_to_gm", [
     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>
   ]> {
   let arguments = (ins
-    PTO_BufferType:$source,
-    PTO_BufferType:$destination,
+    PTO_BufferLikeType:$source,
+    PTO_BufferLikeType:$destination,
     I64:$sid,
     I64:$n_burst,
     I64:$len_burst,
@@ -1762,8 +1768,8 @@ def PTO_DmaStoreOp : PTO_Op<"dma_store", [
     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>
   ]> {
   let arguments = (ins
-    PTO_BufferType:$source,
-    PTO_BufferType:$destination,
+    PTO_BufferLikeType:$source,
+    PTO_BufferLikeType:$destination,
     I64:$len_burst,
     I64:$n_burst,
     I64:$nburst_src_stride,
@@ -2063,39 +2069,27 @@ def PTO_AccStoreOp : PTO_Op<"acc_store", [
     I64:$n,
     I64:$src_stride,
     I64:$dst_stride,
-    I64:$unit_flag_ctrl,
-    I64:$quant_pre,
-    I64:$relu_pre_mode,
-    Optional<PTO_ScalingPtrType>:$fpc,
+    Optional<PTO_AccStorePayloadType>:$pre_quant,
+    Optional<PTO_AccStorePayloadType>:$pre_relu,
+    Optional<PTO_AccStoreClipPayloadType>:$clip_value,
     Optional<I64>:$split,
     Optional<I64>:$loop0_src_stride,
     Optional<I64>:$loop3_count,
     Optional<I64>:$loop3_src_stride,
     Optional<I64>:$loop3_dst_stride,
-    PTO_AccStoreModeAttr:$mode
+    OptionalAttr<PTO_AccStoreModeAttr>:$mode,
+    OptionalAttr<PTO_UnitFlagCtrlAttr>:$unit_flag,
+    OptionalAttr<PTO_AccStoreQuantPreModeAttr>:$pre_quant_mode,
+    OptionalAttr<PTO_ReluPreModeAttr>:$pre_relu_mode,
+    OptionalAttr<PTO_AccStoreAtomicTypeAttr>:$atomic_type,
+    OptionalAttr<PTO_AccStoreAtomicOpAttr>:$atomic_op,
+    OptionalAttr<UnitAttr>:$sat
   );
 
   let results = (outs);
 
   let hasVerifier = 1;
   let hasCustomAssemblyFormat = 1;
-
-  let builders = [
-    OpBuilder<(ins
-      "::mlir::Value":$source,
-      "::mlir::Value":$destination,
-      "::mlir::Value":$m,
-      "::mlir::Value":$n,
-      "::mlir::Value":$srcStride,
-      "::mlir::Value":$dstStride,
-      "::mlir::Value":$unitFlagCtrl,
-      "::mlir::Value":$quantPre,
-      "::mlir::Value":$reluPreMode,
-      "::std::optional<::mlir::Value>":$fpc,
-      "::mlir::pto::AccStoreModeConfig":$modeConfig,
-      "::std::optional<::mlir::pto::DmaLoopConfig>":$loop3
-    )>
-  ];
 }
 
 def PTO_AccStoreGmOp : PTO_Op<"acc_store_gm", [
@@ -2109,18 +2103,23 @@ def PTO_AccStoreGmOp : PTO_Op<"acc_store_gm", [
     I64:$n,
     I64:$src_stride,
     I64:$dst_stride,
-    I64:$unit_flag_ctrl,
-    I64:$quant_pre,
-    I64:$relu_pre_mode,
+    Optional<PTO_AccStorePayloadType>:$pre_quant,
+    Optional<PTO_AccStorePayloadType>:$pre_relu,
+    Optional<PTO_AccStoreClipPayloadType>:$clip_value,
     I64:$sid,
     I64:$l2_cache_ctrl,
-    Optional<PTO_ScalingPtrType>:$fpc,
     Optional<I64>:$split,
     Optional<I64>:$loop0_src_stride,
     Optional<I64>:$loop3_count,
     Optional<I64>:$loop3_src_stride,
     Optional<I64>:$loop3_dst_stride,
-    PTO_AccStoreModeAttr:$mode
+    OptionalAttr<PTO_AccStoreModeAttr>:$mode,
+    OptionalAttr<PTO_UnitFlagCtrlAttr>:$unit_flag,
+    OptionalAttr<PTO_AccStoreQuantPreModeAttr>:$pre_quant_mode,
+    OptionalAttr<PTO_ReluPreModeAttr>:$pre_relu_mode,
+    OptionalAttr<PTO_AccStoreAtomicTypeAttr>:$atomic_type,
+    OptionalAttr<PTO_AccStoreAtomicOpAttr>:$atomic_op,
+    OptionalAttr<UnitAttr>:$sat
   );
 
   let results = (outs);
@@ -2140,10 +2139,9 @@ def PTO_AccStoreUbOp : PTO_Op<"acc_store_ub", [
     I64:$n,
     I64:$src_stride,
     I64:$dst_stride,
-    I64:$unit_flag_ctrl,
-    I64:$quant_pre,
-    I64:$relu_pre_mode,
-    Optional<PTO_ScalingPtrType>:$fpc,
+    Optional<PTO_AccStorePayloadType>:$pre_quant,
+    Optional<PTO_AccStorePayloadType>:$pre_relu,
+    Optional<PTO_AccStoreClipPayloadType>:$clip_value,
     I64:$dual_dst_mode,
     I64:$sub_blockid,
     Optional<I64>:$split,
@@ -2151,7 +2149,11 @@ def PTO_AccStoreUbOp : PTO_Op<"acc_store_ub", [
     Optional<I64>:$loop3_count,
     Optional<I64>:$loop3_src_stride,
     Optional<I64>:$loop3_dst_stride,
-    PTO_AccStoreModeAttr:$mode
+    OptionalAttr<PTO_AccStoreModeAttr>:$mode,
+    OptionalAttr<PTO_UnitFlagCtrlAttr>:$unit_flag,
+    OptionalAttr<PTO_AccStoreQuantPreModeAttr>:$pre_quant_mode,
+    OptionalAttr<PTO_ReluPreModeAttr>:$pre_relu_mode,
+    OptionalAttr<UnitAttr>:$sat
   );
 
   let results = (outs);

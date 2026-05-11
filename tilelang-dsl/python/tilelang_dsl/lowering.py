@@ -3440,24 +3440,21 @@ class _AuthoringRenderer:
     ) -> None:
         source = self._lower_expr(expr.args[0], env, indent=indent, into=into)
         destination = self._lower_expr(expr.args[1], env, indent=indent, into=into)
-        fixed_values = [
-            self._lower_to_i64(arg, env, indent=indent, into=into)
-            for arg in expr.args[2:9]
+        dims = [
+            self._lower_to_i64(expr.args[i], env, indent=indent, into=into) for i in range(2, 6)
         ]
-
-        cursor = 9
-        extra_fixed_values: list[_RenderedValue] = []
+        cursor = 6
+        sid_l2: tuple[_RenderedValue, _RenderedValue] | None = None
+        dual_sub: tuple[_RenderedValue, _RenderedValue] | None = None
         if expr.name == "acc_store_gm":
-            extra_fixed_values = [
-                self._lower_to_i64(expr.args[cursor], env, indent=indent, into=into),
-                self._lower_to_i64(expr.args[cursor + 1], env, indent=indent, into=into),
-            ]
+            sid = self._lower_to_i64(expr.args[cursor], env, indent=indent, into=into)
+            l2 = self._lower_to_i64(expr.args[cursor + 1], env, indent=indent, into=into)
+            sid_l2 = (sid, l2)
             cursor += 2
         elif expr.name == "acc_store_ub":
-            extra_fixed_values = [
-                self._lower_to_i64(expr.args[cursor], env, indent=indent, into=into),
-                self._lower_to_i64(expr.args[cursor + 1], env, indent=indent, into=into),
-            ]
+            dual = self._lower_to_i64(expr.args[cursor], env, indent=indent, into=into)
+            sub = self._lower_to_i64(expr.args[cursor + 1], env, indent=indent, into=into)
+            dual_sub = (dual, sub)
             cursor += 2
 
         mode = self._extract_static_string(expr.args[cursor], context=f"pto.{expr.name} mode")
@@ -3473,29 +3470,40 @@ class _AuthoringRenderer:
             split_value = self._lower_to_i64(expr.args[cursor], env, indent=indent, into=into)
             cursor += 1
         if cursor < len(expr.args):
-            lowered_loop3 = self._lower_cube_i64_tuple(expr.args[cursor], env, indent=indent, into=into, expected_len=3)
+            lowered_loop3 = self._lower_cube_i64_tuple(
+                expr.args[cursor], env, indent=indent, into=into, expected_len=3
+            )
             loop3_values = (lowered_loop3[0], lowered_loop3[1], lowered_loop3[2])
 
-        rendered_values = [source, destination, *fixed_values, *extra_fixed_values]
-        operand_text = ", ".join(value.name for value in rendered_values)
-        type_text = ", ".join(self._render_type(value.type) for value in rendered_values)
+        pieces: list[_RenderedValue] = [source, destination, *dims]
+        if sid_l2 is not None:
+            pieces.extend(sid_l2)
+        elif dual_sub is not None:
+            pieces.extend(dual_sub)
+
+        operand_text = ", ".join(value.name for value in pieces)
+        type_text = ", ".join(self._render_type(value.type) for value in pieces)
         op_text = f"pto.{expr.name} {operand_text}, {mode}"
-        mode_type_text = mode
+        extra_type_parts: list[str] = []
         if mode == "nz2dn" and loop0_src_stride is not None:
             op_text = f"pto.{expr.name} {operand_text}, {mode}({loop0_src_stride.name})"
-            mode_type_text = f"{mode}({self._render_type(loop0_src_stride.type)})"
+            extra_type_parts.append(self._render_type(loop0_src_stride.type))
         elif mode == "nz2nz" and split_value is not None:
             op_text = f"pto.{expr.name} {operand_text}, {mode}({split_value.name})"
-            mode_type_text = f"{mode}({self._render_type(split_value.type)})"
+            extra_type_parts.append(self._render_type(split_value.type))
         if loop3_values is not None:
             op_text += (
-                f" loop3({loop3_values[0].name}, {loop3_values[1].name}, {loop3_values[2].name})"
+                f", loop3({loop3_values[0].name}, {loop3_values[1].name}, {loop3_values[2].name})"
             )
-            type_text += (
-                f", loop3 {self._render_type(loop3_values[0].type)}, "
-                f"{self._render_type(loop3_values[1].type)}, {self._render_type(loop3_values[2].type)}"
+            extra_type_parts.extend(
+                [
+                    self._render_type(loop3_values[0].type),
+                    self._render_type(loop3_values[1].type),
+                    self._render_type(loop3_values[2].type),
+                ]
             )
-        into.append(self._indent(indent) + op_text + " : " + type_text + ", " + mode_type_text)
+        suffix = (", " + ", ".join(extra_type_parts)) if extra_type_parts else ""
+        into.append(self._indent(indent) + op_text + " : " + type_text + suffix)
 
     def _lower_cube_loop_groups(
         self,

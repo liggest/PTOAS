@@ -4371,9 +4371,6 @@ class _SemanticAnalyzer:
             self._require_i64_like_expr(args[index], f"pto.{name} {label}")
 
         allowed_keywords = {
-            "unit_flag_ctrl",
-            "quant_pre",
-            "relu_pre_mode",
             "mode",
             "loop0_src_stride",
             "split",
@@ -4383,9 +4380,6 @@ class _SemanticAnalyzer:
             allowed_keywords |= {"sid", "l2_cache_ctrl"}
         if name == "acc_store_ub":
             allowed_keywords = {
-                "unit_flag_ctrl",
-                "quant_pre",
-                "relu_pre_mode",
                 "mode",
                 "loop0_src_stride",
                 "channel_split_en",
@@ -4399,12 +4393,6 @@ class _SemanticAnalyzer:
                 f"pto.{name} only accepts keyword(s) {', '.join(sorted(allowed_keywords))} in TileLang DSL v1; "
                 f"got unsupported keyword(s): {', '.join(unsupported)}"
             )
-
-        unit_flag_ctrl = keywords.get("unit_flag_ctrl", SemanticLiteralExpr(value=0, type=SemanticIndexType()))
-        quant_pre = keywords.get("quant_pre", SemanticLiteralExpr(value=0, type=SemanticIndexType()))
-        relu_pre_mode = keywords.get("relu_pre_mode", SemanticLiteralExpr(value=0, type=SemanticIndexType()))
-        for label, expr in {"unit_flag_ctrl": unit_flag_ctrl, "quant_pre": quant_pre, "relu_pre_mode": relu_pre_mode}.items():
-            self._require_i64_like_expr(expr, f"pto.{name} {label}")
 
         mode = self._normalize_cube_mode(
             keywords.get(
@@ -4456,7 +4444,7 @@ class _SemanticAnalyzer:
         if loop3_expr is not None:
             loop3_expr = self._require_cube_i64_tuple(loop3_expr, f"pto.{name} loop3", exact_len=3)
 
-        tail_args: list[SemanticExpr] = [unit_flag_ctrl, quant_pre, relu_pre_mode]
+        tail_args: list[SemanticExpr] = []
         if name == "acc_store_gm":
             sid_expr = keywords.get("sid", SemanticLiteralExpr(value=0, type=SemanticIndexType()))
             l2_cache_ctrl_expr = keywords.get("l2_cache_ctrl", SemanticLiteralExpr(value=0, type=SemanticIndexType()))
@@ -4469,7 +4457,7 @@ class _SemanticAnalyzer:
             self._require_i64_like_expr(dual_dst_mode_expr, f"pto.{name} dual_dst_mode")
             self._require_i64_like_expr(sub_blockid_expr, f"pto.{name} sub_blockid")
             tail_args.extend([dual_dst_mode_expr, sub_blockid_expr])
-        tail_args.extend([mode])
+        tail_args.append(mode)
         if loop0_src_stride is not None:
             tail_args.append(loop0_src_stride)
         if split_expr is not None:

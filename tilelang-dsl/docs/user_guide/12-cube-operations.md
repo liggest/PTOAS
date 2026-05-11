@@ -319,7 +319,7 @@ pto.right_load(l1_b.as_ptr(), l0b.as_ptr(), 64, 16)
 
 ### `pto.acc_store` — L0C (acc) → L1 (cbuf)
 
-#### `pto.acc_store(src: PtrType, dst: PtrType, m: int, n: int, src_stride: int, dst_stride: int, *, unit_flag_ctrl: int = 0, quant_pre: int = 0, relu_pre_mode: int = 0, mode: pto.FractalMode = pto.FractalMode.NZ2ND, loop0_src_stride: int | None = None, split: int | None = None, loop3: tuple[int, int, int] | None = None) -> None`
+#### `pto.acc_store(src: PtrType, dst: PtrType, m: int, n: int, src_stride: int, dst_stride: int, *, mode: pto.FractalMode = pto.FractalMode.NZ2ND, loop0_src_stride: int | None = None, split: int | None = None, loop3: tuple[int, int, int] | None = None) -> None`
 
 **Description**: Structured L0C (`acc`) to L1 (`cbuf`) writeback wrapper.
 
@@ -355,7 +355,7 @@ pto.acc_store(l0c.as_ptr(), l1_out.as_ptr(),
 
 ### `pto.acc_store_gm` — L0C (acc) → GM
 
-#### `pto.acc_store_gm(src: PtrType, dst: PtrType, m: int, n: int, src_stride: int, dst_stride: int, *, unit_flag_ctrl: int = 0, quant_pre: int = 0, relu_pre_mode: int = 0, sid: int = 0, l2_cache_ctrl: int = 0, mode: pto.FractalMode = pto.FractalMode.NZ2ND, loop0_src_stride: int | None = None, split: int | None = None, loop3: tuple[int, int, int] | None = None) -> None`
+#### `pto.acc_store_gm(src: PtrType, dst: PtrType, m: int, n: int, src_stride: int, dst_stride: int, *, sid: int = 0, l2_cache_ctrl: int = 0, mode: pto.FractalMode = pto.FractalMode.NZ2ND, loop0_src_stride: int | None = None, split: int | None = None, loop3: tuple[int, int, int] | None = None) -> None`
 
 **Description**: Structured L0C (`acc`) to GM writeback wrapper.
 
@@ -378,7 +378,7 @@ pto.acc_store_gm(l0c.as_ptr(), c_ptr, 16, 16, 16, 16, mode=pto.FractalMode.NZ2ND
 
 ### `pto.acc_store_ub` — L0C (acc) → UB
 
-#### `pto.acc_store_ub(src: PtrType, dst: PtrType, m: int, n: int, src_stride: int, dst_stride: int, *, unit_flag_ctrl: int = 0, quant_pre: int = 0, relu_pre_mode: int = 0, dual_dst_mode: int = 0, sub_blockid: int = 0, mode: pto.FractalMode = pto.FractalMode.NZ2ND, loop0_src_stride: int | None = None, channel_split_en: int | None = None, loop3: tuple[int, int, int] | None = None) -> None`
+#### `pto.acc_store_ub(src: PtrType, dst: PtrType, m: int, n: int, src_stride: int, dst_stride: int, *, dual_dst_mode: int = 0, sub_blockid: int = 0, mode: pto.FractalMode = pto.FractalMode.NZ2ND, loop0_src_stride: int | None = None, channel_split_en: int | None = None, loop3: tuple[int, int, int] | None = None) -> None`
 
 **Description**: Structured L0C (`acc`) to UB writeback wrapper.
 
