@@ -47,18 +47,14 @@ def build():
         # ── Build the nested module shell and the @TADD function body ─────
         with vpto_kernel("TADD", arch="a5") as mod:
 
-            # Integer-address constants for the two input buffers
+            # Constants – declared in the same order as the reference IR.
             c0_i64    = c_i64(0)
+            c16       = c_idx(16)    # loop trip-count: 1024 elems / 64-wide vreg
             c4096_i64 = c_i64(4096)
-
-            # Loop-control constants
-            c0  = c_idx(0)
-            c1  = c_idx(1)
-            c16 = c_idx(16)   # 1024-element array / 64-wide vreg = 16 tiles
-
-            # Scalar used to generate the per-iteration mask
-            c64_i32 = c_i32(64)
-            c64     = c_idx(64)
+            c0        = c_idx(0)
+            c1        = c_idx(1)
+            c64_i32   = c_i32(64)    # scalar for mask generation
+            c64       = c_idx(64)
 
             with vecscope():
                 # Materialise typed pointers from the raw integer addresses
