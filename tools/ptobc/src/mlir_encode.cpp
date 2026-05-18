@@ -430,9 +430,28 @@ void Encoder::encodeKnownOpOperands(
     for (auto value : op.getOperands())
       writeULEB128(getValueId(value), out.bytes);
   };
+  auto emitLegacyIndexedTscatterOperands = [&]() {
+    auto tscatter = llvm::dyn_cast<mlir::pto::TScatterOp>(&op);
+    if (!tscatter || tscatter.getMaskPatternAttr() ||
+        variantInfo.opcode != 0x1056) {
+      return false;
+    }
+    if (op.getNumOperands() != 3) {
+      throw std::runtime_error("operand count mismatch for op: " +
+                               op.getName().getStringRef().str());
+    }
+    // Preserve the historical v0 wire layout for indexed tscatter:
+    //   (src, indexes, dst)
+    writeULEB128(getValueId(tscatter.getSrc()), out.bytes);
+    writeULEB128(getValueId(tscatter.getIndexes()), out.bytes);
+    writeULEB128(getValueId(tscatter.getDst()), out.bytes);
+    return true;
+  };
 
   switch (info.operand_mode) {
   case 0x00:
+    if (emitLegacyIndexedTscatterOperands())
+      return;
     emitOperands(info.num_operands);
     return;
   case 0x01: {
@@ -540,6 +559,20 @@ void Encoder::encodeOp(mlir::Operation& op, Buffer& out) {
   }
 
   auto fullName = op.getName().getStringRef();
+  if (auto tscatter = llvm::dyn_cast<mlir::pto::TScatterOp>(&op)) {
+    uint16_t opcode = tscatter.getMaskPatternAttr()
+                          ? ptobc::v0::kTscatterMaskOpcode
+                          : uint16_t(0x1056);
+    auto variantInfo =
+        ptobc::v0::OpcodeAndVariant{opcode, /*hasVariant=*/0, /*variant=*/0};
+    const auto *info = ptobc::v0::lookupByOpcode(opcode);
+    if (!info)
+      throw std::runtime_error("missing v0 opcode schema for op: " +
+                               fullName.str());
+    encodeKnownOp(op, out, *info, variantInfo);
+    return;
+  }
+
   auto variantInfo = ptobc::v0::lookupOpcodeAndVariantByFullName(fullName);
   if (variantInfo) {
     const auto *info = ptobc::v0::lookupByOpcode(variantInfo->opcode);

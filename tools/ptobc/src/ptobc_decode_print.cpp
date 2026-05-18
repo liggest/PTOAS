@@ -444,25 +444,34 @@ static llvm::SmallVector<uint64_t, 8>
 readKnownOperandIds(BuildCtx &bc, Reader &r, uint16_t opcode, uint8_t variant,
                     const ptobc::v0::OpInfo &info,
                     const KnownOpImmediates &imms) {
+  auto reorderLegacyIndexedTscatter = [&](llvm::SmallVector<uint64_t, 8> ids) {
+    if (opcode != 0x1056 || ids.size() != 3)
+      return ids;
+    // Historical v0 indexed tscatter payload is (src, indexes, dst), while the
+    // current IR operand order is (src, dst, indexes).
+    return llvm::SmallVector<uint64_t, 8>{ids[0], ids[2], ids[1]};
+  };
   switch (info.operand_mode) {
   case 0x00:
-    return readValueIds(r, info.num_operands);
+    return reorderLegacyIndexedTscatter(readValueIds(r, info.num_operands));
   case 0x01: {
     auto count = ptobc::v0::lookupOperandsByVariant(opcode, variant);
     if (!count)
       throw std::runtime_error("missing by-variant operand count");
-    return readValueIds(r, *count);
+    return reorderLegacyIndexedTscatter(readValueIds(r, *count));
   }
   case 0x02:
-    return readValueIds(r, r.readULEB());
+    return reorderLegacyIndexedTscatter(readValueIds(r, r.readULEB()));
   case 0x03:
     if (imms.listMode != 0)
       throw std::runtime_error("list_mode=1 not supported yet");
-    return readValueIds(r, size_t(info.num_operands) + size_t(imms.n1) +
-                               size_t(imms.n2));
+    return reorderLegacyIndexedTscatter(
+        readValueIds(r, size_t(info.num_operands) + size_t(imms.n1) +
+                            size_t(imms.n2)));
   case 0x04:
-    return readValueIds(r, ((imms.optMask & 0x1) ? 1 : 0) +
-                               ((imms.optMask & 0x2) ? 1 : 0));
+    return reorderLegacyIndexedTscatter(
+        readValueIds(r, ((imms.optMask & 0x1) ? 1 : 0) +
+                            ((imms.optMask & 0x2) ? 1 : 0)));
   default:
     (void)bc;
     throw std::runtime_error("unknown operand_mode");

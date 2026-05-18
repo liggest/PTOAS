@@ -9668,16 +9668,32 @@ struct PTOScatterToEmitC : public OpConversionPattern<pto::TScatterOp> {
   LogicalResult matchAndRewrite(pto::TScatterOp op, OpAdaptor adaptor,
                                 ConversionPatternRewriter &rewriter) const override {
     auto loc = op.getLoc();
+    const bool hasMaskPattern = static_cast<bool>(op.getMaskPatternAttr());
+    const bool hasIndexes = static_cast<bool>(op.getIndexes());
+    if (hasMaskPattern == hasIndexes) {
+      return rewriter.notifyMatchFailure(
+          op, "expected exactly one of indexes operand or maskPattern attribute");
+    }
 
     Value src = peelUnrealized(adaptor.getSrc());
-    Value idx = peelUnrealized(adaptor.getIndexes());
     Value dst = peelUnrealized(adaptor.getDst());
 
-    SmallVector<Value, 3> operands{dst, src, idx};
-    rewriter.create<emitc::CallOpaqueOp>(
-        loc, TypeRange{}, "TSCATTER",
-        /*args=*/ArrayAttr{}, /*templateArgs=*/ArrayAttr{},
-        /*operands=*/operands);
+    if (auto mp = op.getMaskPatternAttr()) {
+      auto *ctx = rewriter.getContext();
+      auto targs = rewriter.getArrayAttr({
+          emitc::OpaqueAttr::get(ctx, maskPatternTok(mp)),
+      });
+      rewriter.create<emitc::CallOpaqueOp>(
+          loc, TypeRange{}, "TSCATTER",
+          /*args=*/ArrayAttr{}, /*templateArgs=*/targs,
+          /*operands=*/ValueRange{dst, src});
+    } else {
+      Value idx = peelUnrealized(adaptor.getIndexes());
+      rewriter.create<emitc::CallOpaqueOp>(
+          loc, TypeRange{}, "TSCATTER",
+          /*args=*/ArrayAttr{}, /*templateArgs=*/ArrayAttr{},
+          /*operands=*/ValueRange{dst, src, idx});
+    }
 
     rewriter.eraseOp(op);
     return success();
