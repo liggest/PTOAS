@@ -53,6 +53,8 @@ static std::optional<RepeatAccessShape> getKnownRepeatAccessShapeFromType(Type t
     if (fullShape[0] < 0 || fullShape[1] < 0 || validShape[0] < 0 ||
         validShape[1] < 0)
       return std::nullopt;
+    if (validShape[0] > fullShape[0] || validShape[1] > fullShape[1])
+      return std::nullopt;
     return RepeatAccessShape{
         SmallVector<int64_t, 2>{fullShape[0], fullShape[1]},
         SmallVector<int64_t, 2>{validShape[0], validShape[1]},
@@ -87,7 +89,9 @@ static std::optional<RepeatAccessShape> getKnownRepeatAccessShape(Value access) 
     auto row = getConstantIndex(bind.getValidRow());
     auto col = getConstantIndex(bind.getValidCol());
     if (row && col) {
-      if (*row < 0 || *col < 0) return std::nullopt;
+      if (*row < 0 || *col < 0 || *row > shape->fullShape[0] ||
+          *col > shape->fullShape[1])
+        return std::nullopt;
       shape->validShape = SmallVector<int64_t, 2>{*row, *col};
     } else if (bind.getValidRow() || bind.getValidCol()) {
       return std::nullopt;
