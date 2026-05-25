@@ -4579,6 +4579,10 @@ The exact accumulation performed inside the selected bin is target-defined by th
 | `dst` | `pto.tile_buf` | Destination histogram tile |
 | `byte` | `I32Attr` (default: `1`) | Selects `THISTOGRAM<HistByte::BYTE_<byte>>`, valid range `[0, 3]` |
 
+Legacy inputs using `isMSB` are accepted for compatibility: `isMSB = false`
+maps to `byte = 0`, and `isMSB = true` maps to `byte = 1`. Specifying both
+`byte` and a conflicting legacy `isMSB` is rejected.
+
 **Results:** None. Writes into `dst` via DPS pattern.
 
 **Assembly Format:**

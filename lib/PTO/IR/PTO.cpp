@@ -6663,8 +6663,15 @@ LogicalResult THistogramOp::verify() {
     return it && it.getWidth() == width;
   };
   int64_t byte = 1;
-  if (auto byteAttr = getByteAttr())
+  auto byteAttr = getByteAttr();
+  if (byteAttr)
     byte = byteAttr.getInt();
+  if (auto legacyIsMSB = (*this)->getAttrOfType<BoolAttr>("isMSB")) {
+    int64_t legacyByte = legacyIsMSB.getValue() ? 1 : 0;
+    if (byteAttr && byte != legacyByte)
+      return emitOpError("does not allow conflicting 'byte' and legacy 'isMSB' attributes");
+    byte = legacyByte;
+  }
   if (byte < 0 || byte > 3)
     return emitOpError("expects byte to be in range [0, 3]");
 

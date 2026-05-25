@@ -5736,8 +5736,16 @@ struct PTOHistogramToEmitC : public OpConversionPattern<pto::THistogramOp> {
 
     StringRef histByte = "HistByte::BYTE_1";
     int64_t byte = 1;
-    if (auto byteAttr = op.getByteAttr())
+    auto byteAttr = op.getByteAttr();
+    if (byteAttr)
       byte = byteAttr.getInt();
+    if (auto legacyIsMSB = op->getAttrOfType<BoolAttr>("isMSB")) {
+      int64_t legacyByte = legacyIsMSB.getValue() ? 1 : 0;
+      if (byteAttr && byte != legacyByte)
+        return rewriter.notifyMatchFailure(
+            op, "conflicting 'byte' and legacy 'isMSB' attributes");
+      byte = legacyByte;
+    }
     switch (byte) {
     case 0:
       histByte = "HistByte::BYTE_0";
