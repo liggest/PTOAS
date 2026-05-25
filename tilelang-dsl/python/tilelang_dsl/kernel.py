@@ -1286,6 +1286,7 @@ class VKernelDescriptor:
             set_sequence_attr("shape")
             set_sequence_attr("valid_shape")
             set_sequence_attr("strides")
+            set_scalar_attr("dtype")
             set_scalar_attr("rank")
             set_scalar_attr("memory_space")
             set_scalar_attr("config")

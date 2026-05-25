@@ -1710,6 +1710,43 @@ class TileLangDSLMatcherEntryTests(unittest.TestCase):
 
         self.assertEqual(selected.name, "template_nd")
 
+    def test_constraints_can_read_dtype_from_positional_context_attrs_before_dtype_binding(self) -> None:
+        @pto.vkernel(
+            op="matcher_positional_dtype_context_unique",
+            constraints=[lambda src, dst: src.dtype == pto.f32 and dst.dtype == pto.f32],
+        )
+        def kernel(src: pto.TensorView, dst: pto.Tile):
+            return None
+
+        operand_specs = expand_helper._parse_operand_specs(
+            """
+[
+  {
+    "kind": "view",
+    "dtype": "f32",
+    "shape": [1, 1, 1, 16, 64],
+    "strides": [1024, 1024, 1024, 64, 1],
+    "memory_space": "gm"
+  },
+  {
+    "kind": "tile",
+    "dtype": "f32",
+    "shape": [16, 64],
+    "valid_shape": [16, 64],
+    "memory_space": "ub"
+  }
+]
+"""
+        )
+
+        context_attrs = expand_helper._build_positional_context_attrs(operand_specs)
+        evaluation = kernel_impl._evaluate_constraints(
+            kernel,
+            kernel._constraint_context_for_evaluation(context_attrs),
+        )
+
+        self.assertTrue(evaluation.passed, msg=evaluation.error_message)
+
     def test_select_kernel_binds_selected_op_for_multi_op_descriptor(self) -> None:
         @pto.vkernel(
             ops=["matcher_multi_op_bind_add_unique", "matcher_multi_op_bind_sub_unique"],
