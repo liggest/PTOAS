@@ -5701,7 +5701,7 @@ static bool isA5Fp8LikeType(Type ty) {
 
 static bool isA5MxInputType(Type ty) {
   if (auto ft = dyn_cast<FloatType>(ty))
-    return ft.isFloat8E4M3FN();
+    return ft.isFloat8E4M3FN() || ft.isFloat8E5M2();
   return false;
 }
 
@@ -8764,6 +8764,8 @@ mlir::LogicalResult mlir::pto::TRowExpandDivOp::verify() {
             "expects A5 trowexpanddiv element type to be i8/i16/i32/f16/f32");
       return emitOpError("expects element type to be f16 or f32");
     }
+    if (getPrecisionType() == pto::DivPrecision::HighPrecision && !getTmp())
+      return emitOpError("expects tmp when precisionType is high_precision");
     return mlir::success();
   };
   auto verifyA2A3 = [&]() -> LogicalResult { return verifyByArch(PTOArch::A3); };
@@ -9152,6 +9154,8 @@ mlir::LogicalResult mlir::pto::TRsqrtOp::verify() {
   auto ft = mlir::dyn_cast<mlir::FloatType>(getElemTy(ts));
   if (!ft || (!ft.isF16() && !ft.isF32()))
     return emitOpError("expects element type to be f16 or f32");
+  if (getPrecisionType() == pto::RsqrtPrecision::HighPrecision && !getTmp())
+    return emitOpError("expects tmp when precisionType is high_precision");
   if (auto tmp = getTmp()) {
     Type tt = tmp.getType();
     if (failed(verifyVecTileCommon(*this, tt, "tmp")))
