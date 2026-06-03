@@ -488,6 +488,10 @@ jobs:
           PTOAS_BIN="${PTOAS_BIN}" \
           scripts/sim_dsl.sh test/dsl-st/predicate_pack_launch.py \
             2>&1 | tee "${TILELANG_DSL_WORKSPACE}/ptodsl-dsl-st.log"
+          ASCEND_HOME_PATH="${ASCEND_HOME_PATH}" \
+          PTOAS_BIN="${PTOAS_BIN}" \
+          scripts/sim_dsl.sh test/dsl-st/cube_matrix_pipeline.py \
+            2>&1 | tee "${TILELANG_DSL_WORKSPACE}/cube-matrix-pipeline-st.log"
           PYTHONPATH="${PWD}/build/python:${PWD}/ptodsl:${MLIR_PYTHONPATH}:${PYTHONPATH:-}" \
             python3 test/dsl-st/cube_matrix_pipeline.py --emit-mlir \
             > "${TILELANG_DSL_WORKSPACE}/cube_matrix_pipeline.mlir"
