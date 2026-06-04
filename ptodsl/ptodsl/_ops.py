@@ -1678,9 +1678,25 @@ def _normalize_transfer_sizes(sizes):
 
 
 def _infer_tile_transfer_sizes(tile, *, context: str):
-    if not hasattr(tile, "valid_shape"):
+    valid_shape = getattr(tile, "valid_shape", None)
+    if valid_shape is None:
         raise TypeError(f"{context} requires tile valid_shape metadata to infer sizes")
-    return [tile.valid_shape[index] for index in range(_tile_logical_rank(tile, context=context))]
+    sizes = []
+    for index in range(_tile_logical_rank(tile, context=context)):
+        try:
+            dim = valid_shape[index]
+        except Exception as exc:
+            raise TypeError(
+                f"{context} could not read tile.valid_shape[{index}] to infer sizes; "
+                "pass sizes= explicitly"
+            ) from exc
+        if dim is None:
+            raise ValueError(
+                f"{context} cannot infer partition sizes because tile.valid_shape[{index}] is None; "
+                "pass sizes= explicitly"
+            )
+        sizes.append(dim)
+    return sizes
 
 
 def _tile_transfer_partition(tv, tile, *, offset=None, offsets=None, sizes=None, context: str):

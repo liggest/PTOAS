@@ -63,6 +63,28 @@ expect_raises(
 )
 
 
+class _FakeTileWithoutValidShape:
+    shape = (1, 16)
+    valid_shape = None
+
+
+class _FakeTileWithPartialValidShape:
+    shape = (1, 16)
+    valid_shape = [1, None]
+
+
+expect_raises(
+    TypeError,
+    lambda: pto.load_tile(object(), _FakeTileWithoutValidShape(), offset=[0, 0]),
+    "requires tile valid_shape metadata",
+)
+expect_raises(
+    ValueError,
+    lambda: pto.load_tile(object(), _FakeTileWithPartialValidShape(), offset=[0, 0]),
+    "tile.valid_shape[1] is None",
+)
+
+
 @pto.jit(target="a5")
 def host_vec_copy(
     A_ptr: pto.ptr(pto.f32, "gm"),
