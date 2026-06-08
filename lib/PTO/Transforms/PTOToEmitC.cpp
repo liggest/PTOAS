@@ -9789,20 +9789,10 @@ struct PTOPowToEmitC : public OpConversionPattern<pto::TPowOp> {
     SmallVector<Value, 4> operands{dst, base, exp};
     if (Value tmp = adaptor.getTmp())
       operands.push_back(peelUnrealized(tmp));
-
     ArrayAttr templateArgs;
-    if (op.getPrecisionType() != pto::PowPrecision::Default) {
-      StringRef precisionTok;
-      switch (op.getPrecisionType()) {
-      case pto::PowPrecision::Default:
-        precisionTok = "pto::PowAlgorithm::DEFAULT";
-        break;
-      case pto::PowPrecision::HighPrecision:
-        precisionTok = "pto::PowAlgorithm::HIGH_PRECISION";
-        break;
-      }
+    if (op.getPrecisionType() == pto::PowPrecision::HighPrecision) {
       templateArgs = rewriter.getArrayAttr(
-          {emitc::OpaqueAttr::get(ctx, precisionTok)});
+          {emitc::OpaqueAttr::get(ctx, "pto::PowAlgorithm::HIGH_PRECISION")});
     }
     rewriter.create<emitc::CallOpaqueOp>(
         loc, TypeRange{}, "TPOW",
@@ -9838,18 +9828,9 @@ struct PTOPowSToEmitC : public OpConversionPattern<pto::TPowSOp> {
       operands.push_back(peelUnrealized(tmp));
 
     ArrayAttr templateArgs;
-    if (op.getPrecisionType() != pto::PowPrecision::Default) {
-      StringRef precisionTok;
-      switch (op.getPrecisionType()) {
-      case pto::PowPrecision::Default:
-        precisionTok = "pto::PowAlgorithm::DEFAULT";
-        break;
-      case pto::PowPrecision::HighPrecision:
-        precisionTok = "pto::PowAlgorithm::HIGH_PRECISION";
-        break;
-      }
+    if (op.getPrecisionType() == pto::PowPrecision::HighPrecision) {
       templateArgs = rewriter.getArrayAttr(
-          {emitc::OpaqueAttr::get(ctx, precisionTok)});
+          {emitc::OpaqueAttr::get(ctx, "pto::PowAlgorithm::HIGH_PRECISION")});
     }
     rewriter.create<emitc::CallOpaqueOp>(
         loc, TypeRange{}, "TPOWS",

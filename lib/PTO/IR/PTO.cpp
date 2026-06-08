@@ -8309,6 +8309,10 @@ mlir::LogicalResult mlir::pto::TPowOp::verify() {
     return emitOpError(
         "expects tmp when element type is floating-point (required by the "
         "floating-point pow lowering)");
+  if (isIntElem && getTmp())
+    return emitOpError(
+        "does not accept tmp when element type is integer (the integer pow "
+        "lowering uses the 3-operand form TPOW(dst, base, exp))");
   if (auto tmp = getTmp()) {
     Type tmpTy = tmp.getType();
     if (failed(verifyTileBufCommon(*this, tmpTy, "tmp")))
@@ -8370,6 +8374,10 @@ mlir::LogicalResult mlir::pto::TPowSOp::verify() {
     return emitOpError(
         "expects tmp when element type is floating-point (required by the "
         "floating-point pow lowering)");
+  if (isIntElem && getTmp())
+    return emitOpError(
+        "does not accept tmp when element type is integer (the integer pows "
+        "lowering uses the 3-operand form TPOWS(dst, src, scalar))");
   if (auto tmp = getTmp()) {
     Type tmpTy = tmp.getType();
     if (failed(verifyTileBufCommon(*this, tmpTy, "tmp")))
