@@ -12,6 +12,17 @@ import numpy as np
 
 CASES = [
     {
+        "name": "f32_rows8_seq32",
+        "dtype": np.float32,
+        "shape": (8, 128),
+        "valid_shape": (8, 32),
+        "eps": 1e-4,
+        "rows": 8,
+        "cols": 128,
+        "seq": 32,
+        "seed": 7,
+    },
+    {
         "name": "f32_rows24_seq73",
         "dtype": np.float32,
         "shape": (24, 128),

@@ -22,6 +22,7 @@ using namespace PtoTestCommon;
 
 // Kernel launch wrapper (defined in launch.cpp)
 // Inplace kernel takes single buffer pointer
+void LaunchTFILLPAD_INPLACE_f32_64x16_noexpand(float *buf, float *dummy, void *stream);
 void LaunchTFILLPAD_INPLACE_f32_260x16_noexpand(float *buf, float *dummy, void *stream);
 
 enum class DataType { F32 };
@@ -29,6 +30,7 @@ enum class DataType { F32 };
 struct TestCase {
     const char *name;
     DataType    dtype;
+    void (*launch)(float *, float *, void *);
     size_t      rows;
     size_t      cols;
     size_t      validRows;
@@ -37,8 +39,13 @@ struct TestCase {
 };
 
 static const TestCase kCases[] = {
+    {"f32_64x16_noexpand", DataType::F32,
+     LaunchTFILLPAD_INPLACE_f32_64x16_noexpand,
+     64, 16, 64, 16, sizeof(float)},
+
     // Case: float, 260x16, no expansion (inplace: single buffer)
     {"f32_260x16_noexpand", DataType::F32,
+     LaunchTFILLPAD_INPLACE_f32_260x16_noexpand,
      260, 16, 260, 16, sizeof(float)},
 };
 static constexpr size_t kNumCases = sizeof(kCases) / sizeof(kCases[0]);
@@ -72,7 +79,7 @@ static int RunCase(const TestCase &tc, int deviceId, aclrtStream stream) {
 
         // Run inplace kernel (src == dst = bufDevice)
         // Note: launch wrapper takes two args but inplace kernel uses same physical address
-        LaunchTFILLPAD_INPLACE_f32_260x16_noexpand((float *)bufDevice, (float *)bufDevice, stream);
+        tc.launch((float *)bufDevice, (float *)bufDevice, stream);
 
         aclrtSynchronizeStream(stream);
         // Copy result back (same buffer contains output)

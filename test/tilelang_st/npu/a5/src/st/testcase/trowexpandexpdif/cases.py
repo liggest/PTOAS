@@ -21,18 +21,6 @@ trowexpandexpdif: dst = exp(src0 - broadcast(src1))
 import numpy as np
 
 CASES = [
-    # launchTRowExpandExpdif<float, 32, 64, 32, 1, true>
-    {
-        "name": "f32_32x64",
-        "dtype": np.float32,
-        "src0_shape": (32, 64),
-        "src0_valid_shape": (32, 64),
-        "src1_shape": (32, 8),        # physical: 32/sizeof(f32)=8
-        "src1_valid_shape": (32, 1),  # src1Col=1
-        "dst_shape": (32, 64),
-        "dst_valid_shape": (32, 64),
-        "eps": 1e-5,
-    },
     # launchTRowExpandExpdif<float, 16, 32, 16, 1, true>
     {
         "name": "f32_16x32",
@@ -43,6 +31,18 @@ CASES = [
         "src1_valid_shape": (16, 1),
         "dst_shape": (16, 32),
         "dst_valid_shape": (16, 32),
+        "eps": 1e-5,
+    },
+    # launchTRowExpandExpdif<float, 32, 64, 32, 1, true>
+    {
+        "name": "f32_32x64",
+        "dtype": np.float32,
+        "src0_shape": (32, 64),
+        "src0_valid_shape": (32, 64),
+        "src1_shape": (32, 8),        # physical: 32/sizeof(f32)=8
+        "src1_valid_shape": (32, 1),  # src1Col=1
+        "dst_shape": (32, 64),
+        "dst_valid_shape": (32, 64),
         "eps": 1e-5,
     },
     # launchTRowExpandExpdif<aclFloat16, 16, 32, 16, 1, true>
