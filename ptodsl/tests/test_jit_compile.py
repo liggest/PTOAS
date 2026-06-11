@@ -294,6 +294,23 @@ def process_row_ptr_kernel_module(
         pto.pipe_barrier(pto.Pipe.ALL)
 
 
+@pto.jit(target="a5", entry=False, backend="vpto", mode="explicit", insert_sync=False)
+def ast_rewrite_kernel_module_probe(
+    src_ptr: pto.ptr(pto.f32, "ub"),
+    dst_ptr: pto.ptr(pto.f32, "ub"),
+    rows: pto.i32,
+    cols: pto.i32,
+):
+    lanes = pto.elements_per_vreg(pto.f32)
+    for row in range(0, rows, 1):
+        row_base = row * cols
+        remained = cols
+        for col in range(0, cols, lanes):
+            mask, remained = pto.make_mask(pto.f32, remained)
+            vec = pto.vlds(src_ptr, row_base + col, dist="NORM")
+            pto.vsts(vec, dst_ptr, row_base + col, mask, dist="NORM_B32")
+
+
 @pto.jit(target="a5")
 def entry_calls_kernel_module_probe(
     A_ptr: pto.ptr(pto.f32, "gm"),
@@ -369,6 +386,24 @@ def emitc_entry_calls_vpto_kernel_module_via_decorated_simd_probe(
         pto.tile.load(a_part, a_tile)
         emitc_vpto_kernel_module_callsite_simd_helper(a_tile, o_tile, 16)
         pto.tile.store(o_tile, o_part)
+
+
+@pto.jit(target="a5", backend="emitc")
+def entry_calls_ast_rewrite_kernel_module_probe(
+    A_ptr: pto.ptr(pto.f32, "gm"),
+    O_ptr: pto.ptr(pto.f32, "gm"),
+    rows: pto.i32,
+    cols: pto.i32,
+):
+    a_view = pto.make_tensor_view(A_ptr, shape=[rows, cols], strides=[cols, 1])
+    o_view = pto.make_tensor_view(O_ptr, shape=[rows, cols], strides=[cols, 1])
+    a_tile = pto.alloc_tile(shape=[1, 128], dtype=pto.f32)
+    o_tile = pto.alloc_tile(shape=[1, 128], dtype=pto.f32)
+    part = pto.partition_view(a_view, offsets=[0, 0], sizes=[rows, cols])
+    out = pto.partition_view(o_view, offsets=[0, 0], sizes=[rows, cols])
+    pto.tile.load(part, a_tile)
+    ast_rewrite_kernel_module_probe(a_tile.as_ptr(), o_tile.as_ptr(), rows, cols)
+    pto.tile.store(o_tile, out)
 
 
 @pto.jit(target="a5")
@@ -3006,6 +3041,19 @@ def main() -> None:
         kernel_module_call_text.count('pto.backend = "vpto"') >= 2
         and kernel_module_call_text.count('pto.kernel_kind = #pto.kernel_kind<vector>') >= 2,
         "entry-plus-helper specialization should materialize separate child modules for caller and callee",
+    )
+    ast_rewrite_kernel_module_text = entry_calls_ast_rewrite_kernel_module_probe.compile().mlir_text()
+    expect_parse_roundtrip_and_verify(
+        ast_rewrite_kernel_module_text,
+        "entry calling AST-rewritten kernel-module specialization",
+    )
+    expect(
+        "func.func public @ast_rewrite_kernel_module_probe__ptodsl_" in ast_rewrite_kernel_module_text,
+        "entry=False kernel-module lowering should materialize the AST-rewritten callee definition",
+    )
+    expect(
+        ast_rewrite_kernel_module_text.count("scf.for") >= 2,
+        "entry=False kernel modules should rewrite Python range(...) loops before helper lowering",
     )
     kernel_module_graph = kernel_module_compiled.kernel_module_graph
     expect(

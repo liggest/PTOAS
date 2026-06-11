@@ -671,7 +671,7 @@ class TraceSession:
                 self.suspend_subkernel_scope(),
                 InsertionPoint(entry_block),
             ):
-                compiler._callback(*wrapped_args)
+                compiler.tracing_callback()(*wrapped_args)
                 func.ReturnOp([])
 
         caller_symbol_name = self.current_function_owner_symbol_name
