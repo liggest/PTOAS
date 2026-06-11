@@ -1508,6 +1508,32 @@ def public_sync_surface_probe():
     pto.wait_intra_flag(pto.Pipe.V, dynamic_event)
 
 
+@pto.jit(target="a5", ast_rewrite=False)
+def explicit_runtime_index_bitwise_event_probe():
+    with pto.for_(0, 4, step=1) as i:
+        pto.wait_flag(pto.Pipe.V, pto.Pipe.MTE2, event_id=i & 1)
+        pto.set_flag(pto.Pipe.MTE2, pto.Pipe.V, event_id=(i | 0) ^ 1)
+        pto.wait_flag(pto.Pipe.V, pto.Pipe.MTE2, event_id=1 & i)
+        pto.set_flag(pto.Pipe.MTE2, pto.Pipe.V, event_id=0 | i)
+        pto.wait_flag(pto.Pipe.V, pto.Pipe.MTE2, event_id=1 ^ i)
+
+
+@pto.jit(target="a5", ast_rewrite=False)
+def explicit_runtime_index_integer_bitwise_event_probe():
+    one = pto.const(1, dtype=pto.i32)
+    zero = pto.const(0, dtype=pto.i32)
+    with pto.for_(0, 4, step=1) as i:
+        pto.wait_flag(pto.Pipe.V, pto.Pipe.MTE2, event_id=i & one)
+        pto.set_flag(pto.Pipe.MTE2, pto.Pipe.V, event_id=zero | i)
+        pto.wait_flag(pto.Pipe.V, pto.Pipe.MTE2, event_id=one ^ i)
+
+
+@pto.jit(target="a5")
+def ast_runtime_index_bitwise_event_probe():
+    for i in range(0, 4):
+        pto.wait_flag(pto.Pipe.V, pto.Pipe.MTE2, event_id=i & 1)
+
+
 @pto.jit(target="a5", mode="explicit")
 def public_data_movement_surface_probe():
     zero_u64 = pto.const(0, dtype=pto.ui64)
@@ -1959,6 +1985,9 @@ def main() -> None:
     public_mask_bitcast_probe.verify()
     public_mask_surface_probe.verify()
     public_sync_surface_probe.verify()
+    explicit_runtime_index_bitwise_event_probe.verify()
+    explicit_runtime_index_integer_bitwise_event_probe.verify()
+    ast_runtime_index_bitwise_event_probe.verify()
     public_data_movement_surface_probe.verify()
     public_vector_conversion_surface_probe.verify()
     vdup_surface_probe.verify()
@@ -2984,6 +3013,23 @@ def main() -> None:
     expect_parse_roundtrip_and_verify(mask_surface_text, "public mask surface specialization")
     sync_surface_text = public_sync_surface_probe.compile().mlir_text()
     expect_parse_roundtrip_and_verify(sync_surface_text, "public sync surface specialization")
+    explicit_runtime_index_bitwise_event_text = explicit_runtime_index_bitwise_event_probe.compile().mlir_text()
+    expect_parse_roundtrip_and_verify(
+        explicit_runtime_index_bitwise_event_text,
+        "explicit runtime index bitwise event specialization",
+    )
+    explicit_runtime_index_integer_bitwise_event_text = (
+        explicit_runtime_index_integer_bitwise_event_probe.compile().mlir_text()
+    )
+    expect_parse_roundtrip_and_verify(
+        explicit_runtime_index_integer_bitwise_event_text,
+        "explicit runtime index/integer bitwise event specialization",
+    )
+    ast_runtime_index_bitwise_event_text = ast_runtime_index_bitwise_event_probe.compile().mlir_text()
+    expect_parse_roundtrip_and_verify(
+        ast_runtime_index_bitwise_event_text,
+        "AST runtime index bitwise event specialization",
+    )
     data_movement_surface_text = public_data_movement_surface_probe.compile().mlir_text()
     expect_parse_roundtrip_and_verify(data_movement_surface_text, "public data movement surface specialization")
     vector_conversion_surface_text = public_vector_conversion_surface_probe.compile().mlir_text()
@@ -3010,6 +3056,42 @@ def main() -> None:
     expect("pto.wait_flag[<PIPE_MTE2>, <PIPE_V>, <EVENT_ID0>]" in sync_surface_text, "wait_flag(..., event_id=0) should lower static event ids to pto.wait_flag")
     expect("pto.set_flag_dyn[<PIPE_V>, <PIPE_MTE3>, %c3]" in sync_surface_text, "set_flag(..., event_id=dynamic_event) should lower runtime event ids to pto.set_flag_dyn")
     expect("pto.wait_flag_dyn[<PIPE_V>, <PIPE_MTE3>, %c3]" in sync_surface_text, "wait_flag(..., event_id=dynamic_event) should lower runtime event ids to pto.wait_flag_dyn")
+    expect("arith.andi" in explicit_runtime_index_bitwise_event_text, "explicit pto.for_ index & event id should lower to arith.andi")
+    expect("arith.ori" in explicit_runtime_index_bitwise_event_text, "explicit pto.for_ index | event id should lower to arith.ori")
+    expect("arith.xori" in explicit_runtime_index_bitwise_event_text, "explicit pto.for_ index ^ event id should lower to arith.xori")
+    expect(
+        re.search(r"arith\.andi .* : index", explicit_runtime_index_bitwise_event_text) is not None,
+        "index & literal event id should stay in the index type domain",
+    )
+    expect(
+        "arith.index_cast" not in explicit_runtime_index_bitwise_event_text,
+        "index/literal bitwise event ids should not lower through fixed-width integer casts",
+    )
+    expect(
+        explicit_runtime_index_bitwise_event_text.count("pto.wait_flag_dyn") == 3,
+        "explicit pto.for_ index bitwise event id should lower to pto.wait_flag_dyn",
+    )
+    expect(
+        explicit_runtime_index_bitwise_event_text.count("pto.set_flag_dyn") == 2,
+        "explicit pto.for_ index bitwise event id should lower to pto.set_flag_dyn",
+    )
+    expect(
+        explicit_runtime_index_integer_bitwise_event_text.count("arith.index_cast") >= 2,
+        "index/integer bitwise event ids should coerce integer runtime scalars to index",
+    )
+    expect(
+        explicit_runtime_index_integer_bitwise_event_text.count("pto.wait_flag_dyn") == 2,
+        "index/integer bitwise event ids should lower waits to pto.wait_flag_dyn",
+    )
+    expect(
+        explicit_runtime_index_integer_bitwise_event_text.count("pto.set_flag_dyn") == 1,
+        "index/integer bitwise event ids should lower sets to pto.set_flag_dyn",
+    )
+    expect("arith.andi" in ast_runtime_index_bitwise_event_text, "AST rewritten range loop index & event id should lower to arith.andi")
+    expect(
+        ast_runtime_index_bitwise_event_text.count("pto.wait_flag_dyn") == 1,
+        "AST rewritten range loop index bitwise event id should lower to pto.wait_flag_dyn",
+    )
     expect("pto.sync.set <PIPE_FIX>, 0" in sync_surface_text, "set_cross_flag(Pipe.FIX, 0) should lower to pto.sync.set")
     expect("pto.sync.wait <PIPE_FIX>, 0" in sync_surface_text, "wait_cross_flag(Pipe.FIX, 0) should lower to pto.sync.wait")
     expect("pto.sync.set <PIPE_MTE3>, %c3" in sync_surface_text, "set_intra_flag(Pipe.MTE3, dynamic_event) should lower dynamic event ids through pto.sync.set")

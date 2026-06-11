@@ -13,7 +13,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "ptodsl"))
 
-from ptodsl import pto
+from ptodsl import pto, scalar
 from ptodsl._ast_rewrite import PTODSLAstRewriteError
 from ptodsl._host_tensors import inspect_host_tensor_metadata
 
@@ -56,6 +56,13 @@ def float_loop_bound_probe():
 def float_addptr_offset_probe():
     tile = pto.alloc_tile(shape=[1, 8], dtype=pto.i32, valid_shape=[1, 4])
     _ = pto.addptr(tile.as_ptr(), pto.const(1.5, dtype=pto.f32))
+
+
+@pto.jit(target="a5")
+def float_bitwise_probe():
+    tile = pto.alloc_tile(shape=[1, 8], dtype=pto.f32, valid_shape=[1, 1])
+    value = scalar.load(tile[0, 0])
+    _ = value & 1
 
 
 @pto.jit(target="a5")
@@ -374,6 +381,12 @@ def main() -> None:
         "addptr(ptr, offset)",
         "expects an index-like scalar",
         "f32",
+    )
+    expect_raises(
+        float_bitwise_probe.compile,
+        TypeError,
+        "runtime scalar bitwise operator",
+        "expects integer-like operands",
     )
     expect_raises(
         carry_update_mismatch_probe.compile,
