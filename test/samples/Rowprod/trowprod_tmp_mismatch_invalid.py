@@ -8,7 +8,7 @@
 
 from mlir.ir import Context, Location, Module, InsertionPoint, MLIRError, UnitAttr
 from mlir.dialects import func, pto
-from mlir.ir import F32Type
+from mlir.ir import F32Type, IntegerType
 
 
 def build():
@@ -19,6 +19,7 @@ def build():
             m = Module.create()
 
             f32 = F32Type.get(ctx)
+            i32 = IntegerType.get_signless(32, ctx)
             vec = pto.AddressSpaceAttr.get(pto.AddressSpace.VEC, ctx)
             bl = pto.BLayoutAttr.get(pto.BLayout.RowMajor, ctx)
             sl = pto.SLayoutAttr.get(pto.SLayout.NoneBox, ctx)
@@ -27,7 +28,7 @@ def build():
             fractal_ab_size = pto.TileConfig.fractalABSize
             cfg = pto.TileBufConfigAttr.get(bl, sl, fractal_ab_size, pd, ctx)
             src_ty = pto.TileBufType.get([32, 32], f32, vec, [32, 32], cfg, ctx)
-            tmp_ty = pto.TileBufType.get([32, 16], f32, vec, [32, 16], cfg, ctx)
+            tmp_ty = pto.TileBufType.get([32, 16], i32, vec, [32, 16], cfg, ctx)
             dst_ty = pto.TileBufType.get([32, 32], f32, vec, [32, 1], cfg, ctx)
 
             fn_ty = func.FunctionType.get([], [])
