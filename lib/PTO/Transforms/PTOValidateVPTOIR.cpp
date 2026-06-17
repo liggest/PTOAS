@@ -789,8 +789,8 @@ private:
             [](auto concreteOp) {
               return validateInputMaskVectorConsumer(concreteOp);
             })
-        .Case<VaddOp, VsubOp, VmulOp, VdivOp, VmaxOp, VminOp, VandOp, VorOp,
-              VxorOp, VshlOp, VshrOp>([](auto concreteOp) {
+        .Case<VaddOp, VsubOp, VmulOp, VdivOp, VmaxOp, VminOp, VandOp,
+              VorOp, VxorOp, VshlOp, VshrOp>([](auto concreteOp) {
           return validateBinaryMaskVectorConsumer(concreteOp);
         })
         .Case<VaddcOp, VsubcOp, VaddcsOp, VsubcsOp>([](auto concreteOp) {

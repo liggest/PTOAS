@@ -2128,6 +2128,13 @@ static StringRef getBinaryMaskedStem() {
   return {};
 }
 
+template <typename TernaryOp>
+static StringRef getTernaryMaskedStem() {
+  if constexpr (std::is_same_v<TernaryOp, pto::VmaddOp>)
+    return "vmadd";
+  return {};
+}
+
 template <typename CarryOp>
 static StringRef getCarryBinaryStem() {
   if constexpr (std::is_same_v<CarryOp, pto::VaddcOp>)
@@ -2352,6 +2359,27 @@ StringRef buildRuntimeQueryCallee<pto::GetLaneMaskGtOp>(MLIRContext *context) {
 
 static StringRef buildSprclrCallee(MLIRContext *context) {
   return StringAttr::get(context, "llvm.hivm.sprclr").getValue();
+}
+
+static StringRef buildSprstiCallee(MLIRContext *context) {
+  return StringAttr::get(context, "llvm.hivm.sprsti").getValue();
+}
+
+static StringRef buildSprstsCallee(MLIRContext *context) {
+  return StringAttr::get(context, "llvm.hivm.sprsts").getValue();
+}
+
+template <typename SprStoreOp>
+static StringRef buildSprStoreCallee(MLIRContext *context);
+
+template <>
+StringRef buildSprStoreCallee<pto::SprstiOp>(MLIRContext *context) {
+  return buildSprstiCallee(context);
+}
+
+template <>
+StringRef buildSprStoreCallee<pto::SprstsOp>(MLIRContext *context) {
+  return buildSprstsCallee(context);
 }
 
 template <typename ConfigOp>
@@ -2964,6 +2992,31 @@ static StringRef getReductionUnaryStem() {
   return {};
 }
 
+template <typename HistOp>
+static StringRef getHistogramCallee(MLIRContext *context) {
+  if constexpr (std::is_same_v<HistOp, pto::Chistv2Op>)
+    return StringAttr::get(context, "llvm.hivm.chistv2.m").getValue();
+  if constexpr (std::is_same_v<HistOp, pto::Dhistv2Op>)
+    return StringAttr::get(context, "llvm.hivm.dhistv2.m").getValue();
+  return {};
+}
+
+template <typename ExtremaOp>
+static StringRef getExtremaPredicateStem() {
+  if constexpr (std::is_same_v<ExtremaOp, pto::VcbmaxOp>)
+    return "vcbmax";
+  if constexpr (std::is_same_v<ExtremaOp, pto::VcbminOp>)
+    return "vcbmin";
+  return {};
+}
+
+template <typename ExtremaOp>
+static FailureOr<StringRef> buildExtremaPredicateCallee(MLIRContext *context,
+                                                        Type resultType) {
+  return buildLaneTypedCallee(context, resultType,
+                              getExtremaPredicateStem<ExtremaOp>(), ".x");
+}
+
 static FailureOr<StringRef> buildCopyGmToUbCallee(MLIRContext *context,
                                                   Type sourceType) {
   auto ptrType = dyn_cast<pto::PtrType>(sourceType);
@@ -3412,6 +3465,24 @@ StringRef buildPltCallee<pto::PltB16Op>(MLIRContext *context) {
 template <>
 StringRef buildPltCallee<pto::PltB32Op>(MLIRContext *context) {
   return StringAttr::get(context, "llvm.hivm.plt.b32.v300").getValue();
+}
+
+template <typename PltmOp>
+static StringRef buildPltmCallee(MLIRContext *context);
+
+template <>
+StringRef buildPltmCallee<pto::PltmB8Op>(MLIRContext *context) {
+  return StringAttr::get(context, "llvm.hivm.pltm.b8.v300").getValue();
+}
+
+template <>
+StringRef buildPltmCallee<pto::PltmB16Op>(MLIRContext *context) {
+  return StringAttr::get(context, "llvm.hivm.pltm.b16.v300").getValue();
+}
+
+template <>
+StringRef buildPltmCallee<pto::PltmB32Op>(MLIRContext *context) {
+  return StringAttr::get(context, "llvm.hivm.pltm.b32.v300").getValue();
 }
 
 template <typename PsetOp>
@@ -4210,6 +4281,57 @@ public:
     auto call = rewriter.create<func::CallOp>(op.getLoc(), *calleeName,
                                               TypeRange{resultType},
                                               ValueRange{lhs, rhs, mask});
+    state.plannedDecls.push_back(
+        PlannedDecl{calleeName->str(), call.getCalleeType()});
+    rewriter.replaceOp(op, call.getResults());
+    return success();
+  }
+
+private:
+  LoweringState &state;
+};
+
+template <typename TernaryOp>
+class LowerTernaryMaskedOpPattern final
+    : public OpConversionPattern<TernaryOp> {
+public:
+  explicit LowerTernaryMaskedOpPattern(TypeConverter &typeConverter,
+                                       MLIRContext *context,
+                                       LoweringState &state)
+      : OpConversionPattern<TernaryOp>(typeConverter, context), state(state) {}
+
+  LogicalResult
+  matchAndRewrite(TernaryOp op, typename TernaryOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    StringRef stem = getTernaryMaskedStem<TernaryOp>();
+    FailureOr<StringRef> calleeName =
+        buildLaneTypedCallee(op.getContext(), op.getResult().getType(), stem, ".m");
+    if (failed(calleeName))
+      return rewriter.notifyMatchFailure(op,
+                                         "unsupported ternary VPTO signature");
+
+    Type resultType =
+        this->getTypeConverter()->convertType(op.getResult().getType());
+    Type expectedMaskType =
+        this->getTypeConverter()->convertType(op.getMask().getType());
+    if (!resultType || !expectedMaskType)
+      return rewriter.notifyMatchFailure(
+          op, "failed to convert ternary VPTO types");
+
+    Value acc = adaptor.getAcc();
+    Value lhs = adaptor.getLhs();
+    Value rhs = adaptor.getRhs();
+    Value mask = adaptor.getMask();
+    if (!acc || !lhs || !rhs || !mask || acc.getType() != resultType ||
+        lhs.getType() != resultType || rhs.getType() != resultType ||
+        mask.getType() != expectedMaskType) {
+      return rewriter.notifyMatchFailure(
+          op, "unexpected converted ternary VPTO operand types");
+    }
+
+    auto call = rewriter.create<func::CallOp>(
+        op.getLoc(), *calleeName, TypeRange{resultType},
+        ValueRange{acc, lhs, rhs, mask});
     state.plannedDecls.push_back(
         PlannedDecl{calleeName->str(), call.getCalleeType()});
     rewriter.replaceOp(op, call.getResults());
@@ -5362,6 +5484,102 @@ private:
   LoweringState &state;
 };
 
+template <typename HistOp>
+class LowerHistogramOpPattern final : public OpConversionPattern<HistOp> {
+public:
+  explicit LowerHistogramOpPattern(TypeConverter &typeConverter,
+                                   MLIRContext *context, LoweringState &state)
+      : OpConversionPattern<HistOp>(typeConverter, context), state(state) {}
+
+  LogicalResult
+  matchAndRewrite(HistOp op, typename HistOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    StringRef calleeName = getHistogramCallee<HistOp>(op.getContext());
+    if (calleeName.empty())
+      return rewriter.notifyMatchFailure(op, "unsupported histogram op");
+
+    Type resultType =
+        this->getTypeConverter()->convertType(op.getResult().getType());
+    Type sourceType =
+        this->getTypeConverter()->convertType(op.getSource().getType());
+    Type maskType = this->getTypeConverter()->convertType(op.getMask().getType());
+    if (!resultType || !sourceType || !maskType)
+      return rewriter.notifyMatchFailure(op, "failed to convert histogram types");
+
+    Value acc = adaptor.getAcc();
+    Value source = adaptor.getSource();
+    Value mask = adaptor.getMask();
+    Value bin = adaptor.getBin();
+    if (!acc || !source || !mask || !bin || acc.getType() != resultType ||
+        source.getType() != sourceType || mask.getType() != maskType ||
+        !bin.getType().isInteger(32)) {
+      return rewriter.notifyMatchFailure(
+          op, "unexpected converted histogram operand types");
+    }
+
+    auto funcType = rewriter.getFunctionType(
+        TypeRange{resultType, sourceType, maskType, rewriter.getI32Type()},
+        TypeRange{resultType});
+    auto call = rewriter.create<func::CallOp>(
+        op.getLoc(), calleeName, TypeRange{resultType},
+        ValueRange{acc, source, mask, bin});
+    state.plannedDecls.push_back(PlannedDecl{calleeName.str(), funcType});
+    rewriter.replaceOp(op, call.getResults());
+    return success();
+  }
+
+private:
+  LoweringState &state;
+};
+
+template <typename ExtremaOp>
+class LowerExtremaPredicateOpPattern final
+    : public OpConversionPattern<ExtremaOp> {
+public:
+  explicit LowerExtremaPredicateOpPattern(TypeConverter &typeConverter,
+                                          MLIRContext *context,
+                                          LoweringState &state)
+      : OpConversionPattern<ExtremaOp>(typeConverter, context), state(state) {}
+
+  LogicalResult
+  matchAndRewrite(ExtremaOp op, typename ExtremaOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    FailureOr<StringRef> calleeName =
+        buildExtremaPredicateCallee<ExtremaOp>(op.getContext(),
+                                               op.getValue().getType());
+    if (failed(calleeName))
+      return rewriter.notifyMatchFailure(
+          op, "unsupported extrema-predicate VPTO signature");
+
+    Type valueType =
+        this->getTypeConverter()->convertType(op.getValue().getType());
+    Type predicateType =
+        this->getTypeConverter()->convertType(op.getPredicate().getType());
+    if (!valueType || !predicateType)
+      return rewriter.notifyMatchFailure(
+          op, "failed to convert extrema-predicate result types");
+
+    Value input = adaptor.getInput();
+    Value mask = adaptor.getMask();
+    if (!input || !mask || input.getType() != valueType ||
+        mask.getType() != predicateType) {
+      return rewriter.notifyMatchFailure(
+          op, "unexpected converted extrema-predicate operand types");
+    }
+
+    auto call = rewriter.create<func::CallOp>(
+        op.getLoc(), *calleeName, TypeRange{valueType, predicateType},
+        ValueRange{input, mask});
+    state.plannedDecls.push_back(
+        PlannedDecl{calleeName->str(), call.getCalleeType()});
+    rewriter.replaceOp(op, call.getResults());
+    return success();
+  }
+
+private:
+  LoweringState &state;
+};
+
 template <typename ReductionOp>
 class LowerWideningReductionUnaryOpPattern final
     : public OpConversionPattern<ReductionOp> {
@@ -6030,6 +6248,42 @@ private:
   LoweringState &state;
 };
 
+template <typename PltmOp>
+class LowerPltmOpPattern final : public OpConversionPattern<PltmOp> {
+public:
+  explicit LowerPltmOpPattern(TypeConverter &typeConverter, MLIRContext *context,
+                              LoweringState &state)
+      : OpConversionPattern<PltmOp>(typeConverter, context), state(state) {}
+
+  LogicalResult
+  matchAndRewrite(PltmOp op, typename PltmOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    SmallVector<Type> resultTypes;
+    if (failed(this->getTypeConverter()->convertTypes(op->getResultTypes(),
+                                                      resultTypes)))
+      return rewriter.notifyMatchFailure(op, "failed to convert pltm result type");
+
+    Value loop = adaptor.getLoop();
+    Value bound = adaptor.getBound();
+    if (!loop || !bound || !loop.getType().isInteger(16) ||
+        !bound.getType().isInteger(32))
+      return rewriter.notifyMatchFailure(op,
+                                         "unexpected converted pltm operand types");
+
+    StringRef calleeName = buildPltmCallee<PltmOp>(op.getContext());
+    auto funcType = rewriter.getFunctionType(
+        TypeRange{rewriter.getI16Type(), rewriter.getI32Type()}, resultTypes);
+    auto call = rewriter.create<func::CallOp>(op.getLoc(), calleeName,
+                                              resultTypes, ValueRange{loop, bound});
+    state.plannedDecls.push_back(PlannedDecl{calleeName.str(), funcType});
+    rewriter.replaceOp(op, call.getResults());
+    return success();
+  }
+
+private:
+  LoweringState &state;
+};
+
 template <typename PsetOp>
 class LowerPsetOpPattern final : public OpConversionPattern<PsetOp> {
 public:
@@ -6410,6 +6664,46 @@ public:
         op.getLoc(), rewriter.getI16IntegerAttr(*spr));
     auto funcType = rewriter.getFunctionType(TypeRange{sprValue.getType()}, TypeRange{});
     rewriter.create<func::CallOp>(op.getLoc(), calleeName, TypeRange{}, ValueRange{sprValue});
+    state.plannedDecls.push_back(PlannedDecl{calleeName.str(), funcType});
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  LoweringState &state;
+};
+
+template <typename SprStoreOp>
+class LowerSprStoreOpPattern final : public OpConversionPattern<SprStoreOp> {
+public:
+  explicit LowerSprStoreOpPattern(TypeConverter &typeConverter,
+                                  MLIRContext *context, LoweringState &state)
+      : OpConversionPattern<SprStoreOp>(typeConverter, context), state(state) {}
+
+  LogicalResult
+  matchAndRewrite(SprStoreOp op, typename SprStoreOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto spr = parseSprImmediate(op.getSpr());
+    if (!spr)
+      return rewriter.notifyMatchFailure(op, "unsupported spr store target");
+    auto destType =
+        dyn_cast<LLVM::LLVMPointerType>(adaptor.getDestination().getType());
+    if (!destType || !adaptor.getOffset().getType().isInteger(32))
+      return rewriter.notifyMatchFailure(op,
+                                         "expected converted spr store operands");
+
+    StringRef calleeName = buildSprStoreCallee<SprStoreOp>(op.getContext());
+    Value sprValue = rewriter.create<arith::ConstantOp>(
+        op.getLoc(), rewriter.getI16IntegerAttr(*spr));
+    Value postValue = rewriter.create<arith::ConstantOp>(
+        op.getLoc(), rewriter.getI32IntegerAttr(0));
+    SmallVector<Value> args{sprValue, adaptor.getDestination(),
+                            adaptor.getOffset(), postValue};
+    auto funcType = rewriter.getFunctionType(
+        TypeRange{sprValue.getType(), adaptor.getDestination().getType(),
+                  adaptor.getOffset().getType(), postValue.getType()},
+        TypeRange{});
+    rewriter.create<func::CallOp>(op.getLoc(), calleeName, TypeRange{}, args);
     state.plannedDecls.push_back(PlannedDecl{calleeName.str(), funcType});
     rewriter.eraseOp(op);
     return success();
@@ -9449,6 +9743,7 @@ static void populateVPTOOpLoweringPatterns(VPTOTypeConverter &typeConverter,
                LowerBinaryMaskedOpPattern<pto::VandOp>,
                LowerBinaryMaskedOpPattern<pto::VorOp>,
                LowerBinaryMaskedOpPattern<pto::VxorOp>,
+               LowerTernaryMaskedOpPattern<pto::VmaddOp>,
                LowerBinaryMaskedOpPattern<pto::VpreluOp>,
                LowerCarryBinaryOpPattern<pto::VaddcOp>,
                LowerCarryBinaryOpPattern<pto::VsubcOp>,
@@ -9470,6 +9765,10 @@ static void populateVPTOOpLoweringPatterns(VPTOTypeConverter &typeConverter,
                LowerReductionUnaryOpPattern<pto::VcgmaxOp>,
                LowerReductionUnaryOpPattern<pto::VcgminOp>,
                LowerReductionUnaryOpPattern<pto::VcpaddOp>,
+               LowerHistogramOpPattern<pto::Chistv2Op>,
+               LowerHistogramOpPattern<pto::Dhistv2Op>,
+               LowerExtremaPredicateOpPattern<pto::VcbmaxOp>,
+               LowerExtremaPredicateOpPattern<pto::VcbminOp>,
                LowerVdupOpPattern,
                LowerVbrOpPattern,
                LowerPredicatePackOpPattern<pto::PpackOp>,
@@ -9495,6 +9794,9 @@ static void populateVPTOOpLoweringPatterns(VPTOTypeConverter &typeConverter,
                LowerPltOpPattern<pto::PltB8Op>,
                LowerPltOpPattern<pto::PltB16Op>,
                LowerPltOpPattern<pto::PltB32Op>,
+               LowerPltmOpPattern<pto::PltmB8Op>,
+               LowerPltmOpPattern<pto::PltmB16Op>,
+               LowerPltmOpPattern<pto::PltmB32Op>,
                LowerPsetOpPattern<pto::PsetB8Op>,
                LowerPsetOpPattern<pto::PsetB16Op>,
                LowerPsetOpPattern<pto::PsetB32Op>,
@@ -9603,6 +9905,8 @@ static void populateVPTOOpLoweringPatterns(VPTOTypeConverter &typeConverter,
                LowerVldsOpPattern, LowerVldsx2OpPattern, LowerVsldbOpPattern,
                LowerVldasOpPattern, LowerInitAlignOpPattern,
                LowerVldusOpPattern, LowerSprclrOpPattern,
+               LowerSprStoreOpPattern<pto::SprstiOp>,
+               LowerSprStoreOpPattern<pto::SprstsOp>,
                LowerVstsOpPattern, LowerVsstbOpPattern,
                LowerVstsx2OpPattern,
                LowerVstarOpPattern, LowerVstasOpPattern,
@@ -9695,25 +9999,31 @@ static void configureVPTOOpLoweringTarget(ConversionTarget &target,
   target.addIllegalOp<pto::Sbitset0Op, pto::Sbitset1Op>();
   target.addIllegalOp<pto::VldsOp, pto::Vldsx2Op, pto::VsldbOp,
                       pto::VldasOp, pto::InitAlignOp, pto::VldusOp,
-                      pto::SprclrOp, pto::VstsOp, pto::VsstbOp, pto::Vstsx2Op,
+                      pto::SprclrOp, pto::SprstiOp, pto::SprstsOp,
+                      pto::VstsOp, pto::VsstbOp, pto::Vstsx2Op,
                       pto::VstarOp, pto::VstasOp, pto::Vgather2Op,
                       pto::Vgather2BcOp, pto::VgatherbOp, pto::VscatterOp,
                       pto::PldiOp, pto::PldsOp, pto::PstiOp, pto::PstsOp,
                       pto::PstuOp, pto::VstusOp, pto::VsturOp>();
   target.addIllegalOp<pto::PltB8Op, pto::PltB16Op, pto::PltB32Op,
+                      pto::PltmB8Op, pto::PltmB16Op, pto::PltmB32Op,
                       pto::PsetB8Op, pto::PsetB16Op, pto::PsetB32Op,
                       pto::PgeB8Op, pto::PgeB16Op, pto::PgeB32Op>();
   target.addIllegalOp<pto::VabsOp, pto::VexpOp, pto::VlnOp, pto::VnegOp,
-                      pto::VsqrtOp, pto::VreluOp, pto::VnotOp, pto::VsqzOp,
+                      pto::VsqrtOp, pto::VreluOp, pto::VnotOp,
+                      pto::VsqzOp,
                       pto::VusqzOp, pto::VmulaOp, pto::VmullOp, pto::VaddOp,
                       pto::VsubOp, pto::VmulOp,
                       pto::VdivOp, pto::VmaxOp, pto::VminOp, pto::VandOp,
-                      pto::VorOp, pto::VxorOp, pto::VaddcOp, pto::VsubcOp,
+                      pto::VorOp, pto::VxorOp, pto::VmaddOp,
+                      pto::VaddcOp, pto::VsubcOp,
                       pto::VaddcsOp, pto::VsubcsOp, pto::VshlOp, pto::VshrOp,
                       pto::VmulsOp, pto::VaddsOp, pto::VmaxsOp,
                       pto::VminsOp, pto::VlreluOp, pto::VshlsOp, pto::VshrsOp,
                       pto::VcaddOp, pto::VcmaxOp, pto::VcminOp,
                       pto::VcgaddOp, pto::VcgmaxOp, pto::VcgminOp, pto::VcpaddOp,
+                      pto::Chistv2Op, pto::Dhistv2Op,
+                      pto::VcbmaxOp, pto::VcbminOp,
                       pto::VdupOp, pto::VbrOp,
                       pto::PpackOp, pto::PunpackOp, pto::PbitcastOp,
                       pto::VselOp, pto::VselrOp,

@@ -4652,6 +4652,59 @@ LogicalResult SprclrOp::verify() {
   return success();
 }
 
+static LogicalResult verifySprStoreCommon(Operation *op, StringRef opName,
+                                          StringRef spr, Value destination,
+                                          Value offset,
+                                          bool requireImmediateOffset) {
+  if (!isSupportedSprToken(spr))
+    return op->emitOpError("requires spr to be \"AR\"");
+  if (failed(verifyNestedInVecScope(op, opName)))
+    return failure();
+  auto ptrType = dyn_cast<pto::PtrType>(destination.getType());
+  if (!ptrType)
+    return op->emitOpError("requires a pointer-like UB destination");
+  if (classifyMemoryRole(destination.getType()) != MemoryRole::UB)
+    return op->emitOpError("requires a UB-backed destination");
+  auto intType = dyn_cast<IntegerType>(ptrType.getElementType());
+  if (!intType || intType.getWidth() != 32 || intType.isSigned())
+    return op->emitOpError("requires ui32/i32 UB destination element type");
+  if (!offset.getType().isInteger(32))
+    return op->emitOpError("requires i32 offset");
+  if (requireImmediateOffset) {
+    APInt offsetValue;
+    if (!matchPattern(offset, m_ConstantInt(&offsetValue)))
+      return op->emitOpError("requires constant immediate offset");
+    int64_t signedOffset = offsetValue.getSExtValue();
+    if (signedOffset < -128 || signedOffset > 127)
+      return op->emitOpError("requires signed 8-bit immediate offset");
+  }
+  return success();
+}
+
+void SprstiOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  effects.emplace_back(MemoryEffects::Write::get(), &getDestinationMutable());
+}
+
+LogicalResult SprstiOp::verify() {
+  return verifySprStoreCommon(getOperation(), "pto.sprsti", getSpr(),
+                              getDestination(), getOffset(),
+                              /*requireImmediateOffset=*/true);
+}
+
+void SprstsOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  effects.emplace_back(MemoryEffects::Write::get(), &getDestinationMutable());
+}
+
+LogicalResult SprstsOp::verify() {
+  return verifySprStoreCommon(getOperation(), "pto.sprsts", getSpr(),
+                              getDestination(), getOffset(),
+                              /*requireImmediateOffset=*/false);
+}
+
 void VldusOp::getEffects(
     SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
         &effects) {
@@ -4904,6 +4957,29 @@ LogicalResult PltB16Op::verify() {
 }
 LogicalResult PltB32Op::verify() {
   return verifyPredicateLaneCountOp(*this, "b32");
+}
+
+template <typename PltmOp>
+static LogicalResult verifyPredicateLoopBoundOp(PltmOp op,
+                                                StringRef granularity) {
+  if (failed(verifyMaskTypeWithGranularityLike(op, op.getMask().getType(),
+                                               "mask type", granularity)))
+    return failure();
+  if (!op.getLoop().getType().isInteger(16))
+    return op.emitOpError("requires loop operand to be i16");
+  if (!op.getBound().getType().isInteger(32))
+    return op.emitOpError("requires bound operand to be i32");
+  return success();
+}
+
+LogicalResult PltmB8Op::verify() {
+  return verifyPredicateLoopBoundOp(*this, "b8");
+}
+LogicalResult PltmB16Op::verify() {
+  return verifyPredicateLoopBoundOp(*this, "b16");
+}
+LogicalResult PltmB32Op::verify() {
+  return verifyPredicateLoopBoundOp(*this, "b32");
 }
 
 LogicalResult PpackOp::verify() {
@@ -5204,6 +5280,32 @@ LogicalResult VdivOp::verify() { return verifyBinaryVecOp(*this); }
 LogicalResult VandOp::verify() { return verifyBinaryVecOp(*this); }
 LogicalResult VorOp::verify() { return verifyBinaryVecOp(*this); }
 LogicalResult VxorOp::verify() { return verifyBinaryVecOp(*this); }
+
+template <typename TernaryOp>
+static LogicalResult verifyTernaryVecOp(TernaryOp op) {
+  if (failed(verifyVRegTypeLike(op, op.getAcc().getType(), "acc type")) ||
+      failed(verifyVRegTypeLike(op, op.getLhs().getType(), "lhs type")) ||
+      failed(verifyVRegTypeLike(op, op.getRhs().getType(), "rhs type")) ||
+      failed(verifyMaskTypeLike(op, op.getMask().getType(), "mask type")) ||
+      failed(verifyVRegTypeLike(op, op.getResult().getType(), "result type")))
+    return failure();
+  if (op.getAcc().getType() != op.getLhs().getType() ||
+      op.getAcc().getType() != op.getRhs().getType() ||
+      op.getAcc().getType() != op.getResult().getType()) {
+    return op.emitOpError(
+        "requires acc, lhs, rhs, and result to share one vector type");
+  }
+  return success();
+}
+
+LogicalResult VmaddOp::verify() {
+  if (failed(verifyTernaryVecOp(*this)))
+    return failure();
+  Type elemType = cast<VRegType>(getAcc().getType()).getElementType();
+  if (!elemType.isF16() && !elemType.isBF16() && !elemType.isF32())
+    return emitOpError("requires f16/bf16/f32 vector element type");
+  return success();
+}
 LogicalResult VshlOp::verify() {
   if (failed(verifyBinaryVecOp(*this)))
     return failure();
@@ -5259,6 +5361,63 @@ LogicalResult VcpaddOp::verify() {
     return emitOpError("requires f16 or f32 vector element type");
   return success();
 }
+
+template <typename HistOp>
+static LogicalResult verifyHistogramOp(HistOp op) {
+  if (failed(verifyVRegTypeLike(op, op.getAcc().getType(), "acc type")) ||
+      failed(verifyVRegTypeLike(op, op.getSource().getType(), "source type")) ||
+      failed(verifyMaskTypeWithGranularityLike(op, op.getMask().getType(),
+                                               "mask type", "b8")) ||
+      failed(verifyVRegTypeLike(op, op.getResult().getType(), "result type")))
+    return failure();
+  auto accType = cast<VRegType>(op.getAcc().getType());
+  auto sourceType = cast<VRegType>(op.getSource().getType());
+  auto resultType = cast<VRegType>(op.getResult().getType());
+  auto accElemType = dyn_cast<IntegerType>(accType.getElementType());
+  auto sourceElemType = dyn_cast<IntegerType>(sourceType.getElementType());
+  if (!accElemType || accElemType.getWidth() != 16 ||
+      accType.getElementCount() != 128)
+    return op.emitOpError("requires acc type to be !pto.vreg<128xi16>");
+  if (!sourceElemType || sourceElemType.getWidth() != 8 ||
+      sourceType.getElementCount() != 256)
+    return op.emitOpError("requires source type to be !pto.vreg<256xi8>");
+  if (resultType != accType)
+    return op.emitOpError("requires result type to match acc type");
+  if (!op.getBin().getType().isInteger(32))
+    return op.emitOpError("requires bin operand to be i32");
+  return success();
+}
+
+LogicalResult Chistv2Op::verify() { return verifyHistogramOp(*this); }
+LogicalResult Dhistv2Op::verify() { return verifyHistogramOp(*this); }
+
+template <typename ExtremaOp>
+static LogicalResult verifyExtremaPredicateOp(ExtremaOp op) {
+  if (failed(verifyVRegTypeLike(op, op.getInput().getType(), "input type")) ||
+      failed(verifyMaskTypeLike(op, op.getMask().getType(), "mask type")) ||
+      failed(verifyVRegTypeLike(op, op.getValue().getType(), "value type")) ||
+      failed(verifyMaskTypeLike(op, op.getPredicate().getType(),
+                                "predicate type")))
+    return failure();
+  if (op.getInput().getType() != op.getValue().getType())
+    return op.emitOpError(
+        "requires input and value result to share one vector type");
+  if (op.getMask().getType() != op.getPredicate().getType())
+    return op.emitOpError(
+        "requires mask and predicate result to share one mask type");
+
+  Type elemType = cast<VRegType>(op.getInput().getType()).getElementType();
+  if (elemType.isF16() || elemType.isF32())
+    return success();
+  auto intType = dyn_cast<IntegerType>(elemType);
+  if (!intType || (intType.getWidth() != 8 && intType.getWidth() != 16 &&
+                   intType.getWidth() != 32))
+    return op.emitOpError("requires i8/i16/i32/f16/f32 vector element type");
+  return success();
+}
+
+LogicalResult VcbmaxOp::verify() { return verifyExtremaPredicateOp(*this); }
+LogicalResult VcbminOp::verify() { return verifyExtremaPredicateOp(*this); }
 
 template <typename SelectOp>
 static LogicalResult verifyLaneSelectOp(SelectOp op) {

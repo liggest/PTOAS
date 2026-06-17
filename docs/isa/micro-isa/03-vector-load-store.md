@@ -501,6 +501,46 @@ for (int i = 0; i < N; i++)
 
 ---
 
+## SPR State Ops
+
+### `pto.sprclr`
+
+- **syntax:** `pto.sprclr "AR"`
+- **semantics:** Clear the hardware SPR AR state used by AR-driven unaligned
+  store forms.
+- **constraints and limitations:**
+  Only `"AR"` is supported.
+
+---
+
+### `pto.sprsti`
+
+- **syntax:** `pto.sprsti "AR", %dest[%offset] : !pto.ptr<ui32, ub>, i32`
+- **semantics:** Store SPR AR to UB using a signed 8-bit immediate offset.
+- **inputs:**
+  `%dest` is the UB base pointer and `%offset` is the immediate offset in units
+  of the SPR data width.
+- **constraints and limitations:**
+  Only `"AR"` is supported. `%dest` must be a `ui32` or signless `i32` UB
+  pointer. `%offset` must be a constant signed 8-bit `i32`. The current VPTO
+  surface models only the no-post-update form, so no updated base pointer is
+  returned.
+
+---
+
+### `pto.sprsts`
+
+- **syntax:** `pto.sprsts "AR", %dest[%offset] : !pto.ptr<ui32, ub>, i32`
+- **semantics:** Store SPR AR to UB using a scalar-register offset.
+- **inputs:**
+  `%dest` is the UB base pointer and `%offset` is the scalar offset in bytes.
+- **constraints and limitations:**
+  Only `"AR"` is supported. `%dest` must be a `ui32` or signless `i32` UB
+  pointer. The current VPTO surface models only the no-post-update form, so no
+  updated base pointer is returned.
+
+---
+
 ## Alignment State Stores
 
 ### `pto.vstas`

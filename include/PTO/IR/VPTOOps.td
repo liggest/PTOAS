@@ -1397,6 +1397,42 @@ def PTO_SprclrOp : PTO_Op<"sprclr", []> {
   }];
 }
 
+def PTO_SprstiOp : PTO_Op<"sprsti", [
+    DeclareOpInterfaceMethods<MemoryEffectsOpInterface>
+  ]> {
+  let arguments = (ins
+    StrAttr:$spr,
+    PTO_BufferType:$destination,
+    I32:$offset
+  );
+
+  let results = (outs);
+
+  let hasVerifier = 1;
+
+  let assemblyFormat = [{
+    $spr `,` $destination `[` $offset `]` attr-dict `:` type($destination) `,` type($offset)
+  }];
+}
+
+def PTO_SprstsOp : PTO_Op<"sprsts", [
+    DeclareOpInterfaceMethods<MemoryEffectsOpInterface>
+  ]> {
+  let arguments = (ins
+    StrAttr:$spr,
+    PTO_BufferType:$destination,
+    I32:$offset
+  );
+
+  let results = (outs);
+
+  let hasVerifier = 1;
+
+  let assemblyFormat = [{
+    $spr `,` $destination `[` $offset `]` attr-dict `:` type($destination) `,` type($offset)
+  }];
+}
+
 def PTO_VldusOp : PTO_Op<"vldus", [
     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>
   ]> {
@@ -1560,6 +1596,39 @@ def PTO_PltB32Op : PTO_Op<"plt_b32", [Pure]> {
 
   let assemblyFormat = [{
     $scalar attr-dict `:` type($scalar) `->` type($mask) `,` type($scalar_out)
+  }];
+}
+
+def PTO_PltmB8Op : PTO_Op<"pltm_b8", [Pure]> {
+  let arguments = (ins I16:$loop, I32:$bound);
+  let results = (outs PTO_B8MaskTypeConstraint:$mask);
+
+  let hasVerifier = 1;
+
+  let assemblyFormat = [{
+    $loop `,` $bound attr-dict `:` type($loop) `,` type($bound) `->` type($mask)
+  }];
+}
+
+def PTO_PltmB16Op : PTO_Op<"pltm_b16", [Pure]> {
+  let arguments = (ins I16:$loop, I32:$bound);
+  let results = (outs PTO_B16MaskTypeConstraint:$mask);
+
+  let hasVerifier = 1;
+
+  let assemblyFormat = [{
+    $loop `,` $bound attr-dict `:` type($loop) `,` type($bound) `->` type($mask)
+  }];
+}
+
+def PTO_PltmB32Op : PTO_Op<"pltm_b32", [Pure]> {
+  let arguments = (ins I16:$loop, I32:$bound);
+  let results = (outs PTO_B32MaskTypeConstraint:$mask);
+
+  let hasVerifier = 1;
+
+  let assemblyFormat = [{
+    $loop `,` $bound attr-dict `:` type($loop) `,` type($bound) `->` type($mask)
   }];
 }
 
@@ -2000,6 +2069,45 @@ def PTO_VcgmaxOp : PTO_UnaryVecOp<"vcgmax">;
 def PTO_VcgminOp : PTO_UnaryVecOp<"vcgmin">;
 def PTO_VcpaddOp : PTO_UnaryVecOp<"vcpadd">;
 
+class PTO_HistogramOp<string mnemonic> : PTO_Op<mnemonic, [Pure]> {
+  let arguments = (ins
+    PTO_VectorType:$acc,
+    PTO_VectorType:$source,
+    PTO_B8MaskTypeConstraint:$mask,
+    I32:$bin
+  );
+  let results = (outs PTO_VectorType:$result);
+
+  let hasVerifier = 1;
+
+  let assemblyFormat = [{
+    $acc `,` $source `,` $mask `,` $bin attr-dict `:` type($acc) `,` type($source) `,` type($mask) `,` type($bin) `->` type($result)
+  }];
+}
+
+def PTO_Chistv2Op : PTO_HistogramOp<"chistv2">;
+def PTO_Dhistv2Op : PTO_HistogramOp<"dhistv2">;
+
+class PTO_ExtremaPredicateOp<string mnemonic> : PTO_Op<mnemonic, [Pure]> {
+  let arguments = (ins
+    PTO_VectorType:$input,
+    PTO_MaskTypeConstraint:$mask
+  );
+  let results = (outs
+    PTO_VectorType:$value,
+    PTO_MaskTypeConstraint:$predicate
+  );
+
+  let hasVerifier = 1;
+
+  let assemblyFormat = [{
+    $input `,` $mask attr-dict `:` type($input) `,` type($mask) `->` type($value) `,` type($predicate)
+  }];
+}
+
+def PTO_VcbmaxOp : PTO_ExtremaPredicateOp<"vcbmax">;
+def PTO_VcbminOp : PTO_ExtremaPredicateOp<"vcbmin">;
+
 class PTO_BinaryVecOp<string mnemonic> : PTO_Op<mnemonic, [Pure]> {
   let arguments = (ins
     PTO_VectorType:$lhs,
@@ -2024,6 +2132,24 @@ def PTO_VminOp : PTO_BinaryVecOp<"vmin">;
 def PTO_VandOp : PTO_BinaryVecOp<"vand">;
 def PTO_VorOp : PTO_BinaryVecOp<"vor">;
 def PTO_VxorOp : PTO_BinaryVecOp<"vxor">;
+
+class PTO_TernaryVecOp<string mnemonic> : PTO_Op<mnemonic, [Pure]> {
+  let arguments = (ins
+    PTO_VectorType:$acc,
+    PTO_VectorType:$lhs,
+    PTO_VectorType:$rhs,
+    PTO_MaskTypeConstraint:$mask
+  );
+  let results = (outs PTO_VectorType:$result);
+
+  let hasVerifier = 1;
+
+  let assemblyFormat = [{
+    $acc `,` $lhs `,` $rhs `,` $mask attr-dict `:` type($acc) `,` type($lhs) `,` type($rhs) `,` type($mask) `->` type($result)
+  }];
+}
+
+def PTO_VmaddOp : PTO_TernaryVecOp<"vmadd">;
 
 def PTO_VaddcOp : PTO_Op<"vaddc", [Pure]> {
   let arguments = (ins
