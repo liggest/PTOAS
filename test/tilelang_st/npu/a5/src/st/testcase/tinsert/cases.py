@@ -31,7 +31,7 @@ CASES = [
         "m": 16, "k": 16, "n": 16,
         "dtype": np.float16,
         "dtype_out": np.float32,
-        "id_dtype": np.float16,
+        "id_dtype": np.uint16,
         "path": "acc2mat_nz",
         "has_output": True,
         "eps": 1e-2,

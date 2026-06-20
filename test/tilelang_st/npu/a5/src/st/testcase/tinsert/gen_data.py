@@ -37,16 +37,17 @@ for case in CASES:
 
     if id_dtype is not None:
         id_mat = np.eye(m, dtype=dtype_out)
-        data["input3"] = id_mat.astype(id_dtype)
 
-        # 模拟 tinsert acc→mat 量化：matmul_f32 量化到中间格式
         if case["name"].startswith("acc2mat_bf16"):
-            # bf16 path: f32 acc → bf16 (truncated) → f32 readback → matmul(identity f32)
+            id_as_f32 = float32_to_bfloat16_and_back(id_mat)
+            id_as_bf16_bits = (id_as_f32.view(np.uint32) >> np.uint32(16)).astype(np.uint16)
+            data["input3"] = id_as_bf16_bits
             quantized = float32_to_bfloat16_and_back(matmul_f32)
         elif case["name"].startswith("acc2mat_f16"):
-            # f16 path: f32 acc → f16 → f32 readback → matmul(identity f32)
+            data["input3"] = id_mat.astype(id_dtype)
             quantized = matmul_f32.astype(np.float16).astype(np.float32)
         else:
+            data["input3"] = id_mat.astype(id_dtype)
             quantized = matmul_f32
 
         golden = np.matmul(quantized, id_mat.astype(np.float32)).astype(dtype_out)
