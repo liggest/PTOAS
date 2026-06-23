@@ -1857,6 +1857,8 @@ int mlir::pto::compilePTOASModule(
   // Conditionally add one automatic synchronization mode. Barrier-all is a
   // conservative standalone pass; InsertSync and GraphSyncSolver are set/wait
   // solvers, while BufidSync is A5-only get_buf/rls_buf synchronization.
+  pm.addNestedPass<mlir::func::FuncOp>(
+      pto::createPTOVerifySubkernelPipeContractPass());
   if (enableInsertSync)
     pm.addNestedPass<mlir::func::FuncOp>(pto::createPTOInsertSyncPass());
   else if (enableBufidSync) {
