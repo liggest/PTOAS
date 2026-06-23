@@ -209,6 +209,12 @@ set(ALL_TESTCASES
     textract_fp
     textract_v2v
     fp8_load_test
+    tmov2left
+    tmov2right
+    tmov2bias
+    tmov2scale
+    tmov2vec
+    tmov_fp
 )
 
 if((TEST_CASE IN_LIST ALL_TESTCASES) OR (TEST_CASE STREQUAL "all"))
