@@ -380,12 +380,12 @@ static Value maybeWrapGlobalMemrefAsGlobalTensor(
     Type originalType, Operation *anchor, StringRef tag = {});
 
 static bool hasCompatibleKnownExtentForMGather(int64_t lhs, int64_t rhs) {
-  return lhs == ShapedType::kDynamic || rhs == ShapedType::kDynamic ||
+  return lhs != ShapedType::kDynamic && rhs != ShapedType::kDynamic &&
          lhs == rhs;
 }
 
 static bool isKnownUnitExtentForMGather(int64_t value) {
-  return value == ShapedType::kDynamic || value == 1;
+  return value == 0 || value == 1;
 }
 
 struct GatherScatterShapeLayoutInfo {
@@ -394,8 +394,80 @@ struct GatherScatterShapeLayoutInfo {
   bool colMajor = false;
 };
 
+static std::optional<int64_t> getGatherScatterConstantIndex(Value value) {
+  if (!value)
+    return std::nullopt;
+  if (auto cst = value.getDefiningOp<arith::ConstantIndexOp>())
+    return cst.value();
+  if (auto cst = value.getDefiningOp<arith::ConstantIntOp>())
+    return cst.value();
+  return std::nullopt;
+}
+
+static std::optional<SmallVector<Value, 2>>
+lookupGatherScatterValidDims(Value value) {
+  if (auto bind = value.getDefiningOp<pto::BindTileOp>())
+    return SmallVector<Value, 2>{bind.getValidRow(), bind.getValidCol()};
+  if (auto cast = value.getDefiningOp<pto::PointerCastOp>())
+    return SmallVector<Value, 2>{cast.getValidRow(), cast.getValidCol()};
+  if (auto subview = value.getDefiningOp<memref::SubViewOp>())
+    return lookupGatherScatterValidDims(subview.getSource());
+  if (auto cast = value.getDefiningOp<memref::ReinterpretCastOp>())
+    return lookupGatherScatterValidDims(cast.getSource());
+  if (auto cast = value.getDefiningOp<memref::CastOp>())
+    return lookupGatherScatterValidDims(cast.getSource());
+
+  if (auto regionResult = dyn_cast<OpResult>(value)) {
+    if (auto fusionRegion = dyn_cast<pto::FusionRegionOp>(regionResult.getOwner())) {
+      auto yieldOp =
+          dyn_cast<pto::YieldOp>(fusionRegion.getBody().front().getTerminator());
+      if (!yieldOp)
+        return std::nullopt;
+      unsigned resultIndex = regionResult.getResultNumber();
+      if (resultIndex >= yieldOp.getNumOperands())
+        return std::nullopt;
+      return lookupGatherScatterValidDims(yieldOp.getOperand(resultIndex));
+    }
+  }
+
+  return std::nullopt;
+}
+
+static std::optional<pto::TileBufConfigAttr>
+lookupGatherScatterTileConfig(Value value) {
+  if (auto bind = value.getDefiningOp<pto::BindTileOp>())
+    return bind.getConfig();
+  if (auto cast = value.getDefiningOp<pto::PointerCastOp>()) {
+    if (auto config = cast.getConfig())
+      return *config;
+    return std::nullopt;
+  }
+  if (auto subview = value.getDefiningOp<memref::SubViewOp>())
+    return lookupGatherScatterTileConfig(subview.getSource());
+  if (auto cast = value.getDefiningOp<memref::ReinterpretCastOp>())
+    return lookupGatherScatterTileConfig(cast.getSource());
+  if (auto cast = value.getDefiningOp<memref::CastOp>())
+    return lookupGatherScatterTileConfig(cast.getSource());
+
+  if (auto regionResult = dyn_cast<OpResult>(value)) {
+    if (auto fusionRegion = dyn_cast<pto::FusionRegionOp>(regionResult.getOwner())) {
+      auto yieldOp =
+          dyn_cast<pto::YieldOp>(fusionRegion.getBody().front().getTerminator());
+      if (!yieldOp)
+        return std::nullopt;
+      unsigned resultIndex = regionResult.getResultNumber();
+      if (resultIndex >= yieldOp.getNumOperands())
+        return std::nullopt;
+      return lookupGatherScatterTileConfig(yieldOp.getOperand(resultIndex));
+    }
+  }
+
+  return std::nullopt;
+}
+
 static std::optional<GatherScatterShapeLayoutInfo>
-getGatherScatterShapeLayoutInfo(Type ty) {
+getGatherScatterShapeLayoutInfo(Value value) {
+  Type ty = value.getType();
   if (auto tileTy = dyn_cast<pto::TileBufType>(ty)) {
     ArrayRef<int64_t> validShape = tileTy.getValidShape();
     if (validShape.size() != 2)
@@ -421,14 +493,34 @@ getGatherScatterShapeLayoutInfo(Type ty) {
 
   GatherScatterShapeLayoutInfo info;
   info.shape.assign(memRefTy.getShape().begin(), memRefTy.getShape().end());
+  if (auto validDims = lookupGatherScatterValidDims(value)) {
+    if (auto validRow = getGatherScatterConstantIndex((*validDims)[0]))
+      info.shape[0] = *validRow;
+    else if ((*validDims)[0])
+      info.shape[0] = ShapedType::kDynamic;
+    if (auto validCol = getGatherScatterConstantIndex((*validDims)[1]))
+      info.shape[1] = *validCol;
+    else if ((*validDims)[1])
+      info.shape[1] = ShapedType::kDynamic;
+  }
+
+  if (auto config = lookupGatherScatterTileConfig(value)) {
+    auto blayoutAttr = dyn_cast<pto::BLayoutAttr>(config->getBLayout());
+    if (blayoutAttr) {
+      info.rowMajor = blayoutAttr.getValue() == pto::BLayout::RowMajor;
+      info.colMajor = blayoutAttr.getValue() == pto::BLayout::ColMajor;
+      return info;
+    }
+  }
+
   info.rowMajor = strides[1] == 1;
   info.colMajor = strides[0] == 1;
   return info;
 }
 
-static bool isRowCoalescedMGatherIndexType(Type dataTy, Type idxTy) {
-  auto dataInfo = getGatherScatterShapeLayoutInfo(dataTy);
-  auto idxInfo = getGatherScatterShapeLayoutInfo(idxTy);
+static bool isRowCoalescedMGatherIndex(Value data, Value idx) {
+  auto dataInfo = getGatherScatterShapeLayoutInfo(data);
+  auto idxInfo = getGatherScatterShapeLayoutInfo(idx);
   if (!dataInfo || !idxInfo)
     return false;
 
@@ -3182,7 +3274,7 @@ struct PTOMGatherToMGATHER : public OpConversionPattern<pto::MGatherOp> {
       coalesce = coalesceAttr.getValue();
     } else {
       const bool rowCoalesce =
-          isRowCoalescedMGatherIndexType(op.getDst().getType(), op.getIdx().getType());
+          isRowCoalescedMGatherIndex(op.getDst(), op.getIdx());
       coalesce = rowCoalesce ? pto::Coalesce::Row : pto::Coalesce::Elem;
     }
     templateArgVec.push_back(
@@ -6237,7 +6329,7 @@ struct PTOMScatterToMSCATTER : public OpConversionPattern<pto::MScatterOp> {
       coalesce = coalesceAttr.getValue();
     } else {
       const bool rowCoalesce =
-          isRowCoalescedMGatherIndexType(op.getSrc().getType(), op.getIdx().getType());
+          isRowCoalescedMGatherIndex(op.getSrc(), op.getIdx());
       coalesce = rowCoalesce ? pto::Coalesce::Row : pto::Coalesce::Elem;
     }
     templateArgVec.push_back(
