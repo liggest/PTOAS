@@ -162,6 +162,9 @@ jobs:
       - name: Build PTOAS
         run: |
           export PATH="${PY_PATH}/bin:$PATH"
+          if [ "${{ matrix.arch }}" = "aarch64" ]; then
+            export CMAKE_BUILD_PARALLEL_LEVEL=2
+          fi
           PTOAS_RELEASE_VERSION_OVERRIDE="${PTOAS_VERSION}" \
           pip install . --no-build-isolation
 

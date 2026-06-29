@@ -316,6 +316,7 @@ jobs:
           ref: ${{ env.PYPTO_REF }}
           path: ${{ env.PYPTO_WORKSPACE }}
           fetch-depth: 1
+          submodules: recursive
           persist-credentials: false
 
       - name: Checkout PTO-ISA
@@ -384,6 +385,29 @@ jobs:
           # ci_sim only runs PyPTO simulator tests. Keep the runtime install from
           # auto-detecting onboard platforms from the runner's CANN environment.
           env -u ASCEND_HOME_PATH python3 -m pip install --no-build-isolation --no-deps "${PYPTO_WORKSPACE}/runtime"
+
+          python3 - <<'PY'
+          from pathlib import Path
+
+          from simpler_setup.environment import PROJECT_ROOT
+          from simpler_setup.kernel_compiler import KernelCompiler
+
+          required = PROJECT_ROOT / "src" / "common" / "task_interface" / "arg_direction.h"
+          if not required.is_file():
+              raise SystemExit(f"missing required simpler runtime header: {required}")
+
+          include_dirs = KernelCompiler(platform="a5sim").get_orchestration_include_dirs(
+              "tensormap_and_ringbuffer"
+          )
+          if str(required.parent) not in include_dirs:
+              raise SystemExit(
+                  "simpler orchestration include dirs do not contain "
+                  f"{required.parent}: {include_dirs}"
+              )
+
+          print(f"simpler PROJECT_ROOT={PROJECT_ROOT}")
+          print(f"simpler arg_direction.h={required}")
+          PY
 
       - name: Run PyPTO PTOAS end-to-end simulator smoke
         shell: bash
