@@ -12,6 +12,7 @@
 #include "PTO/Transforms/Passes.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
+#include "mlir/IR/Builders.h"
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
@@ -236,20 +237,25 @@ static void diagnoseTNotifyRelease(pto::TNotifyOp op,
     hasFailure = true;
     return;
   }
-  if (state.drainMte3) {
-    op.emitOpError()
-        << "requires an explicit `pto.barrier <PIPE_MTE3>` before "
-           "`pto.fence.release #pto.fence_scope<ddr>` when publishing a "
-           "signal after MTE3 GM writes";
-    hasFailure = true;
-    return;
-  }
   if (state.needsDsbDdr) {
     op.emitOpError()
         << "requires explicit `pto.fence.release #pto.fence_scope<ddr>` "
-           "before publishing a signal after GM writes or cache clean";
+           "before publishing a signal after GM writes or cache clean; "
+           "PTOAS inserts the required MTE3 pipe drain before the release "
+           "fence when needed";
     hasFailure = true;
   }
+}
+
+static void insertMte3DrainBeforeReleaseFence(pto::FenceReleaseOp fence,
+                                              TNotifyReleaseState &state) {
+  if (fence.getScope().getScope() != pto::FenceScope::DDR || !state.drainMte3)
+    return;
+  OpBuilder builder(fence);
+  builder.create<pto::BarrierOp>(
+      fence.getLoc(), pto::PipeAttr::get(fence.getContext(),
+                                         pto::PIPE::PIPE_MTE3));
+  state.drainMte3 = false;
 }
 
 static void markNestedTNotifyWithState(Operation *op,
@@ -307,8 +313,10 @@ annotateTNotifyReleaseForBlock(Block &block,
       pendingState.applyBarrier(barrier.getPipe().getPipe());
     if (auto cmo = dyn_cast<pto::CmoCleanOp>(op))
       pendingState.applyCmoClean(cmo.getSpace().getAddressSpace());
-    if (auto fence = dyn_cast<pto::FenceReleaseOp>(op))
+    if (auto fence = dyn_cast<pto::FenceReleaseOp>(op)) {
+      insertMte3DrainBeforeReleaseFence(fence, pendingState);
       pendingState.applyFenceRelease(fence.getScope().getScope());
+    }
   }
   return pendingState;
 }

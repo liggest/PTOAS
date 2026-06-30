@@ -83,6 +83,6 @@ module {
   }
 }
 
-// CHECK: requires an explicit `pto.barrier <PIPE_MTE3>`
+// CHECK: requires explicit `pto.fence.release #pto.fence_scope<ddr>`
 // CHECK: requires explicit `pto.cmo.clean all #pto.address_space<gm>`
 // CHECK: requires explicit `pto.cmo.invalidate all #pto.address_space<gm>`

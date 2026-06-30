@@ -131,6 +131,7 @@ VPTO backend 都会先经过这一步。
 - 识别 signal publish 前是否存在 pending payload write。
 - 识别 signal acquire 后是否存在 cacheable GM payload read。
 - 校验用户或 PyPTO 是否已经插入必要的 CMO 和 fence。
+- 在显式 release fence 前自动补齐必要的 MTE3 pipe drain。
 - 对缺失或顺序错误的场景报编译错误。
 - 对不需要 `dcci` 和 `dsb` 的纯 pipe drain 场景，仍允许保留自动标注。
 
@@ -150,16 +151,31 @@ VPTO backend 都会先经过这一步。
 
 ```mlir
 // payload producer
-pto.barrier #pto.pipe<PIPE_MTE3>
 pto.fence.release #pto.fence_scope<ddr>
 pto.comm.tnotify ...
 ```
 
-`pto.barrier #pto.pipe<PIPE_MTE3>` 用来排空 MTE3 pipe。`pto.fence.release` 用来保证
-这些 GM 写入在 signal 发布前进入 DDR visibility domain。
+PyPTO 或用户只需要表达 `pto.fence.release` 这个内存一致性边界。PTOAS 会在
+`pto.fence.release #pto.fence_scope<ddr>` 前检查是否存在 pending MTE3 GM write；如果存在，
+自动插入：
 
-如果只有 `pto.fence.release`，但没有 MTE3 barrier，PTOAS 会报错。因为 fence 不能替代
-pipe drain。
+```mlir
+pto.barrier #pto.pipe<PIPE_MTE3>
+```
+
+最终 lowering 的顺序是：
+
+```cpp
+pipe_barrier(PIPE_MTE3);
+dsb(DSB_DDR);
+pto::comm::TNOTIFY(...);
+```
+
+`pipe_barrier(PIPE_MTE3)` 用来排空 MTE3 pipe。`pto.fence.release` lower 出来的
+`dsb(DSB_DDR)` 用来保证这些 GM 写入在 signal 发布前进入 DDR visibility domain。
+
+如果缺少 `pto.fence.release`，PTOAS 会报错。因为 PTOAS 可以推导 pipe drain，但不会凭空
+猜测 payload publish 的语义边界。
 
 ### 6.2 MTE2 工作后发布 signal
 
@@ -239,11 +255,14 @@ payload 时可能遇到的 stale cache。
 
 PyPTO 需要在 payload publish 边界显式生成 CMO 和 fence。
 
+PyPTO 不需要手动生成 `pto.barrier #pto.pipe<PIPE_MTE3>`。这是低层 pipe drain 细节，
+由 PTOAS 根据 release fence 前的 pending MTE3 work 自动插入。这样可以保证最终顺序是
+`pipe_barrier(PIPE_MTE3)` 先于 `dsb(DSB_DDR)`，不会出现先 fence、后 drain 的错误顺序。
+
 ### 7.1 TPUT 发布 signal
 
 ```mlir
 pto.comm.tput ...
-pto.barrier #pto.pipe<PIPE_MTE3>
 pto.fence.release #pto.fence_scope<ddr>
 pto.comm.tnotify ...
 ```
@@ -252,7 +271,6 @@ pto.comm.tnotify ...
 
 ```mlir
 pto.tstore ...
-pto.barrier #pto.pipe<PIPE_MTE3>
 pto.fence.release #pto.fence_scope<ddr>
 pto.comm.tnotify ...
 ```

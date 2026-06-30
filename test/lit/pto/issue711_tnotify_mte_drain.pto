@@ -50,7 +50,6 @@ module {
     pto.tstore ins(%tile : !pto.tile_buf<loc=vec, dtype=f32, rows=1, cols=32, v_row=1, v_col=32, blayout=row_major, slayout=none_box, fractal=512, pad=0>)
                outs(%dst : !pto.partition_tensor_view<1x32xf32>)
     pto.barrier <PIPE_MTE2>
-    pto.barrier <PIPE_MTE3>
     pto.fence.release #pto.fence_scope<ddr>
 
     %sig_view = pto.make_tensor_view %signal_ptr,
