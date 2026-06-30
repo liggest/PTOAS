@@ -1,0 +1,31 @@
+// Copyright (c) 2026 Huawei Technologies Co., Ltd.
+// This program is free software, you can redistribute it and/or modify it under the terms of conditions of
+// CANN Open Software License Agreement Version 2.0 (the "License").
+// Please refer to the License for details.
+
+// RUN: ptoas %s 2>&1 | FileCheck %s
+
+// Multi-result textual SSA names use the `%name:N =` MLIR syntax. The textual
+// hint parser must still consume that op so later result-name hints do not
+// shift onto the wrong operations.
+
+module {
+  func.func @multi_result_hint_alignment(%pred: i1) -> i32 {
+    %c0 = arith.constant 0 : i32
+    %c1 = arith.constant 1 : i32
+    %pair:2 = scf.if %pred -> (i32, i32) {
+      scf.yield %c0, %c1 : i32, i32
+    } else {
+      scf.yield %c1, %c0 : i32, i32
+    }
+    %sum = arith.addi %pair#0, %pair#1 : i32
+    %scaled = arith.muli %sum, %c1 : i32
+    return %scaled : i32
+  }
+}
+
+// CHECK-LABEL: AICORE int32_t multi_result_hint_alignment(
+// CHECK: int32_t sum =
+// CHECK-SAME: // pto: %sum
+// CHECK: int32_t scaled =
+// CHECK-SAME: // pto: %scaled

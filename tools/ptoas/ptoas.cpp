@@ -696,6 +696,18 @@ static bool parseLeadingOpResultNames(
   while (pos < line.size() &&
          std::isspace(static_cast<unsigned char>(line[pos])))
     ++pos;
+  if (pos < line.size() && line[pos] == ':') {
+    ++pos;
+    size_t countBegin = pos;
+    while (pos < line.size() &&
+           std::isdigit(static_cast<unsigned char>(line[pos])))
+      ++pos;
+    if (pos == countBegin)
+      return false;
+    while (pos < line.size() &&
+           std::isspace(static_cast<unsigned char>(line[pos])))
+      ++pos;
+  }
   return pos < line.size() && line[pos] == '=';
 }
 
