@@ -1334,6 +1334,13 @@ bool MemPlan::IsEnoughForBuffersNoReuse(StorageEntry *rootStorageEntry,
   if (iter == bufferScope2RequiredSize.end())
     llvm::report_fatal_error("missing required-size entry for buffer scope");
   if (iter->second < restBufferSize) {
+    // Even when the scope fits without reuse (no peak to save), honor
+    // largest-first placement so the option means the same thing on both paths:
+    // a deterministic decreasing-size layout regardless of whether reuse kicks
+    // in. Stable sort keeps uniform-size scopes byte-identical to the default.
+    if (orderBySize) {
+      rootStorageEntry = GetSizeOrderedRootStorageEntry(rootStorageEntry);
+    }
     PlanBuffersWithoutReuse(rootStorageEntry, alignUnit);
     return true;
   }
