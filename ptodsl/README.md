@@ -1,9 +1,12 @@
 # ptodsl — PTO Python IR Builders
 
-A lightweight, pip-installable DSL package for building PTO MLIR IR modules
+A lightweight Python DSL package for building PTO MLIR IR modules
 in Python. PTODSL kernels are ordinary Python functions decorated with
 `@pto.jit`. Type annotations carry PTO
 types as lazy descriptors, and control-flow maps 1-to-1 to MLIR operations.
+
+PTODSL is distributed through the repository-root `ptoas` package. Use the
+root install flows described below.
 
 ---
 
@@ -27,7 +30,6 @@ ptodsl/
 │   ├── tadd_dsl.py         # TADD – @pto.jit DSL style
 │   ├── softmax_lowlevel.py # Softmax – raw MLIR Python binding calls
 │   └── softmax_dsl.py      # Softmax – @pto.jit DSL style
-├── pyproject.toml       # pip install -e .
 └── README.md
 ```
 
@@ -49,9 +51,12 @@ source scripts/ptoas_env.sh
 ## Install the package
 
 ```bash
-cd $PTOAS_REPO_ROOT/ptodsl
-pip install -e .
+cd $PTOAS_REPO_ROOT
+pip install -e . --no-build-isolation
 ```
+
+Use `pip install . --no-build-isolation` from the repository root when you
+want a non-editable source install.
 
 ---
 
@@ -62,7 +67,7 @@ both compile-only and end-to-end launch flows.
 
 ### Prerequisites for launch examples
 
-- `ptoas` + `ptodsl` installed as above
+- `ptoas` with bundled PTODSL installed as above
 - CANN 9.0+ with `ASCEND_HOME_PATH` set
 - For end-to-end launch: `torch`, `torch_npu`, `numpy`
 - `bisheng` on `PATH`
