@@ -274,6 +274,26 @@ struct LowerPTOToUBufOpsPass
       }
     }
 
+    // ---- taddrelu -> pto.ub.vaddrelu ----
+    {
+      SmallVector<pto::TAddReluOp> ops;
+      func.walk([&](pto::TAddReluOp op) { ops.push_back(op); });
+      for (auto op : ops) {
+        if (!canLower(op, tileShapes))
+          continue;
+        auto info = extractTileShapeInfo(op, tileShapes);
+        if (!info)
+          continue;
+        auto [dstPtr, src0Ptr, src1Ptr, ptrType] = lowerBinaryOpCommon(
+            builder, ctx, op, op.getDst(), op.getSrc0(), op.getSrc1(), tileShapes);
+        if (!dstPtr)
+          continue;
+        dispatch<pto::UBVaddReluOp>(op.getLoc(), builder, dstPtr, src0Ptr,
+                                    src1Ptr, ptrType, *info);
+        op.erase();
+      }
+    }
+
     // ---- tsub → pto.ub.vsub ----
     {
       SmallVector<pto::TSubOp> ops;

@@ -99,6 +99,7 @@ def test_binary_f32(case, torch, target_arch, backend):
         target=target_arch, backend=backend,
     )
     compile_s, launch_s = launch_and_check(
+        op_name=op_name,
         kernel_handle=kernel,
         ref_fn=ref_fn,
         shape=(rows, cols),
@@ -133,6 +134,7 @@ def test_binary_f16(case, torch, target_arch, backend):
         target=target_arch, backend=backend,
     )
     compile_s, launch_s = launch_and_check(
+        op_name=op_name,
         kernel_handle=kernel,
         ref_fn=ref_fn,
         shape=(rows, cols),

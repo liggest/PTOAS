@@ -4639,6 +4639,8 @@ public:
       calleeName = "llvm.hivm.VAND." + elemFrag;
     else if constexpr (std::is_same_v<UBOp, pto::UBVorOp>)
       calleeName = "llvm.hivm.VOR." + elemFrag;
+    else if constexpr (std::is_same_v<UBOp, pto::UBVaddReluOp>)
+      calleeName = "llvm.hivm.VADDRELU." + elemFrag;
     else
       return rewriter.notifyMatchFailure(op, "unsupported ubuf binary op");
 
@@ -10672,6 +10674,8 @@ static void populateVPTOOpLoweringPatterns(VPTOTypeConverter &typeConverter,
         typeConverter, patterns.getContext(), state);
     patterns.add<LowerUBufBinaryOpPattern<pto::UBVorOp>>(
         typeConverter, patterns.getContext(), state);
+    patterns.add<LowerUBufBinaryOpPattern<pto::UBVaddReluOp>>(
+        typeConverter, patterns.getContext(), state);
     patterns.add<LowerUBufUnaryOpPattern<pto::UBVnotOp>>(
         typeConverter, patterns.getContext(), state);
     patterns.add<LowerUBufUnaryOpPattern<pto::UBVabsOp>>(
@@ -10828,6 +10832,7 @@ static void configureVPTOOpLoweringTarget(ConversionTarget &target,
     target.addIllegalOp<pto::UBVminOp>();
     target.addIllegalOp<pto::UBVandOp>();
     target.addIllegalOp<pto::UBVorOp>();
+    target.addIllegalOp<pto::UBVaddReluOp>();
     target.addIllegalOp<pto::UBVnotOp>();
     target.addIllegalOp<pto::UBVabsOp>();
     target.addIllegalOp<pto::UBVreluOp>();

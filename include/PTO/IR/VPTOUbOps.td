@@ -65,6 +65,7 @@ def PTO_UBVmaxOp : PTO_UBufBinaryOp<"ub.vmax">;
 def PTO_UBVminOp : PTO_UBufBinaryOp<"ub.vmin">;
 def PTO_UBVandOp : PTO_UBufBinaryOp<"ub.vand">;
 def PTO_UBVorOp  : PTO_UBufBinaryOp<"ub.vor">;
+def PTO_UBVaddReluOp : PTO_UBufBinaryOp<"ub.vaddrelu">;
 
 //===----------------------------------------------------------------------===//
 // PTO_UBufUnaryOp — unary elementwise (VNOT)

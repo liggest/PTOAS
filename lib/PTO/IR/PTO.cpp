@@ -4993,6 +4993,19 @@ LogicalResult pto::TAddOp::verify() {
       "expects A5 tadd element type to be i32/i16/i8/f16/bf16/f32");
 }
 
+LogicalResult pto::TAddReluOp::verify() {
+  if (shouldBypassDecodedMemrefVerifier(getOperation()))
+    return success();
+  FailureOr<Type> elemOr = verifyMatchingRowMajorBinaryTileOpCommon(
+      getOperation(), getSrc0().getType(), getSrc1().getType(), getDst().getType());
+  if (failed(elemOr))
+    return failure();
+  Type elemTy = *elemOr;
+  if (elemTy.isInteger(16) || elemTy.isF16() || elemTy.isF32())
+    return success();
+  return emitOpError("expects element type to be i16/f16/f32");
+}
+
 LogicalResult pto::TAddCOp::verify() {
   if (shouldBypassDecodedMemrefVerifier(getOperation()))
     return success();
@@ -13153,6 +13166,7 @@ void GetValidShapeOp::getEffects(
 
 // Elementwise + reductions: mostly PIPE_V tilebuf ops
 PTO_DEFINE_BINARY_EFFECTS(TAddOp, getSrc0Mutable(), getSrc1Mutable(), getDstMutable())
+PTO_DEFINE_BINARY_EFFECTS(TAddReluOp, getSrc0Mutable(), getSrc1Mutable(), getDstMutable())
 PTO_DEFINE_TERNARY_EFFECTS(TAddCOp, getSrc0Mutable(), getSrc1Mutable(), getSrc2Mutable(), getDstMutable())
 PTO_DEFINE_UNARY_EFFECTS(TAddSOp, getSrcMutable(), getDstMutable())
 PTO_DEFINE_BINARY_EFFECTS(TAddSCOp, getSrc0Mutable(), getSrc1Mutable(), getDstMutable())

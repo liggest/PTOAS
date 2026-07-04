@@ -2586,6 +2586,15 @@ def tadd(src0, src1, dst):
     )
 
 
+def taddrelu(src0, src1, dst):
+    """``pto.taddrelu ins(src0, src1) outs(dst)``."""
+    _pto.taddrelu(
+        unwrap_surface_value(src0),
+        unwrap_surface_value(src1),
+        unwrap_surface_value(dst),
+    )
+
+
 def tsub(src0, src1, dst):
     """``pto.tsub ins(src0, src1) outs(dst)``."""
     _pto.tsub(
@@ -5468,7 +5477,7 @@ __all__ = [
     "tload", "tstore", "tmov", "tinsert",
     "tmatmul", "tmatmul_acc", "tmatmul_mx", "tmatmul_mx_acc", "tmatmul_mx_bias",
     "tgemv_mx", "tgemv_mx_acc", "tgemv_mx_bias",
-    "tadd", "tsub", "tmul", "tdiv", "tmax", "tmin",
+    "tadd", "taddrelu", "tsub", "tmul", "tdiv", "tmax", "tmin",
     "tadds", "tsubs", "tmuls", "tdivs", "tmaxs", "tmins",
     "texp", "tlog", "tsqrt", "trsqrt", "trecip", "tabs", "tneg",
     "trelu", "tlrelu",

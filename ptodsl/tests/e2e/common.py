@@ -21,6 +21,7 @@ from ptodsl import pto
 
 BINARY_OPS = {
     "add": (pto.tile.add, lambda x, y: x + y),
+    "addrelu": (pto.tile.addrelu, lambda x, y: np.maximum(x + y, 0)),
     "sub": (pto.tile.sub, lambda x, y: x - y),
     "mul": (pto.tile.mul, lambda x, y: x * y),
     "div": (pto.tile.div, lambda x, y: x / (y + 1e-8)),
@@ -257,6 +258,7 @@ def make_input(shape, dtype, torch, seed=42):
 
 def launch_and_check(
     *,
+    op_name: str | None = None,
     kernel_handle,
     ref_fn: Callable,
     shape: tuple[int, int],
@@ -269,8 +271,12 @@ def launch_and_check(
     """Compile, launch, and numerical-check one kernel specialization."""
     torch_dt = _torch_dtype(torch, dtype_str)
 
-    x = make_input(shape, torch_dt, torch, seed=seed)
-    y = make_input(shape, torch_dt, torch, seed=seed + 1)
+    if op_name == "addrelu":
+        x = make_input_signed(shape, torch_dt, torch, seed=seed)
+        y = make_input_signed(shape, torch_dt, torch, seed=seed + 1)
+    else:
+        x = make_input(shape, torch_dt, torch, seed=seed)
+        y = make_input(shape, torch_dt, torch, seed=seed + 1)
     z = torch.empty(shape, dtype=torch_dt, device="npu:0")
     ref = ref_fn(x.cpu().numpy(), y.cpu().numpy())
     stream = _npu_stream(torch)
