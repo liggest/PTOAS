@@ -8029,6 +8029,71 @@ LogicalResult UBVnotOp::verify() {
 }
 
 //===----------------------------------------------------------------------===//
+// UBVabsOp
+//===----------------------------------------------------------------------===//
+
+void UBVabsOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  effects.emplace_back(MemoryEffects::Read::get(), &getSrcMutable());
+  effects.emplace_back(MemoryEffects::Write::get(), &getDstMutable());
+}
+
+LogicalResult UBVabsOp::verify() {
+  if (!isBufferLike(getDst().getType()) || !isBufferLike(getSrc().getType()))
+    return emitOpError("requires pointer-like operands");
+  if (classifyMemoryRole(getDst().getType()) != MemoryRole::UB ||
+      classifyMemoryRole(getSrc().getType()) != MemoryRole::UB)
+    return emitOpError("requires UB-backed operands");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// UBVreluOp
+//===----------------------------------------------------------------------===//
+
+void UBVreluOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  effects.emplace_back(MemoryEffects::Read::get(), &getSrcMutable());
+  effects.emplace_back(MemoryEffects::Write::get(), &getDstMutable());
+}
+
+LogicalResult UBVreluOp::verify() {
+  if (!isBufferLike(getDst().getType()) || !isBufferLike(getSrc().getType()))
+    return emitOpError("requires pointer-like operands");
+  if (classifyMemoryRole(getDst().getType()) != MemoryRole::UB ||
+      classifyMemoryRole(getSrc().getType()) != MemoryRole::UB)
+    return emitOpError("requires UB-backed operands");
+  return success();
+}
+
+#define PTO_DEFINE_UB_UNARY_VERITY_AND_EFFECTS(OpName)                        \
+  void OpName::getEffects(                                                    \
+      SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>     \
+          &effects) {                                                         \
+    effects.emplace_back(MemoryEffects::Read::get(), &getSrcMutable());       \
+    effects.emplace_back(MemoryEffects::Write::get(), &getDstMutable());      \
+  }                                                                           \
+  LogicalResult OpName::verify() {                                            \
+    if (!isBufferLike(getDst().getType()) ||                                  \
+        !isBufferLike(getSrc().getType()))                                    \
+      return emitOpError("requires pointer-like operands");                   \
+    if (classifyMemoryRole(getDst().getType()) != MemoryRole::UB ||           \
+        classifyMemoryRole(getSrc().getType()) != MemoryRole::UB)             \
+      return emitOpError("requires UB-backed operands");                      \
+    return success();                                                         \
+  }
+
+PTO_DEFINE_UB_UNARY_VERITY_AND_EFFECTS(UBVexpOp)
+PTO_DEFINE_UB_UNARY_VERITY_AND_EFFECTS(UBVsqrtOp)
+PTO_DEFINE_UB_UNARY_VERITY_AND_EFFECTS(UBVrsqrtOp)
+
+PTO_DEFINE_UB_UNARY_VERITY_AND_EFFECTS(UBVaddSOp)
+PTO_DEFINE_UB_UNARY_VERITY_AND_EFFECTS(UBVmaxSOp)
+PTO_DEFINE_UB_UNARY_VERITY_AND_EFFECTS(UBVminSOp)
+
+//===----------------------------------------------------------------------===//
 // UBVshlOp
 //===----------------------------------------------------------------------===//
 
@@ -8060,6 +8125,26 @@ void UBVshrOp::getEffects(
 }
 
 LogicalResult UBVshrOp::verify() {
+  if (!isBufferLike(getDst().getType()) || !isBufferLike(getSrc().getType()))
+    return emitOpError("requires pointer-like operands");
+  if (classifyMemoryRole(getDst().getType()) != MemoryRole::UB ||
+      classifyMemoryRole(getSrc().getType()) != MemoryRole::UB)
+    return emitOpError("requires UB-backed operands");
+  return success();
+}
+
+//===----------------------------------------------------------------------===//
+// UBVmulSOp
+//===----------------------------------------------------------------------===//
+
+void UBVmulSOp::getEffects(
+    SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
+        &effects) {
+  effects.emplace_back(MemoryEffects::Read::get(), &getSrcMutable());
+  effects.emplace_back(MemoryEffects::Write::get(), &getDstMutable());
+}
+
+LogicalResult UBVmulSOp::verify() {
   if (!isBufferLike(getDst().getType()) || !isBufferLike(getSrc().getType()))
     return emitOpError("requires pointer-like operands");
   if (classifyMemoryRole(getDst().getType()) != MemoryRole::UB ||

@@ -39,6 +39,24 @@ SHIFT_OPS = {
     "bit_shrs": (pto.tile.bit_shrs, lambda x, n: np.right_shift(x, n)),
 }
 
+UNARY_OPS = {
+    "abs":  (pto.tile.abs,  lambda x: np.abs(x)),
+    "relu": (pto.tile.relu, lambda x: np.maximum(x, 0)),
+    "neg":  (pto.tile.neg,  lambda x: np.negative(x)),
+    "exp":  (pto.tile.exp,  lambda x: np.exp(x)),
+    "sqrt": (pto.tile.sqrt, lambda x: np.sqrt(np.abs(x))),
+    "rsqrt":(pto.tile.rsqrt,lambda x: 1.0 / np.sqrt(np.abs(x))),
+}
+
+POSITIVE_INPUT_OPS = {"sqrt", "rsqrt"}
+
+SCALAR_OPS = {
+    "adds": (pto.tile.adds, lambda x, s: x + s),
+    "muls": (pto.tile.muls, lambda x, s: x * s),
+    "maxs": (pto.tile.maxs, lambda x, s: np.maximum(x, s)),
+    "mins": (pto.tile.mins, lambda x, s: np.minimum(x, s)),
+}
+
 
 def _npu_stream(torch):
     return torch.npu.current_stream()._as_parameter_  # noqa: SLF001
@@ -263,6 +281,195 @@ def launch_and_check(
 
     t0 = time.perf_counter()
     compiled[1, stream](x.data_ptr(), y.data_ptr(), z.data_ptr())
+    torch.npu.synchronize()
+    launch_s = time.perf_counter() - t0
+
+    actual = z.cpu().numpy()
+    # VRSQRT uses a hardware fast approximation; relax tolerance.
+    eff_rtol = 1e-2 if op_name == "rsqrt" else rtol
+    eff_atol = 1e-2 if op_name == "rsqrt" else atol
+    np.testing.assert_allclose(actual, ref, rtol=eff_rtol, atol=eff_atol)
+    return compile_s, launch_s
+
+
+def make_unary_kernel(
+    op_name: str,
+    rows: int,
+    cols: int,
+    dtype_str: str = "float32",
+    target: str = "a3",
+    backend: str = "vpto",
+    kernel_kind: str = "vector",
+):
+    """Return a ``@pto.jit`` KernelHandle for an elementwise unary op."""
+    tile_op_fn = UNARY_OPS[op_name][0]
+    pto_dtype = getattr(pto, dtype_str)
+    fn_name = f"un_{op_name}_{dtype_str}_{rows}x{cols}"
+
+    def kernel_body(
+        A_ptr: pto.ptr(pto_dtype, "gm"),
+        C_ptr: pto.ptr(pto_dtype, "gm"),
+    ) -> None:
+        c0 = pto.const(0)
+        c1 = pto.const(1)
+        c_rows = pto.const(rows)
+        c_cols = pto.const(cols)
+        c_elems = pto.const(rows * cols)
+
+        shape = [c1, c1, c1, c_rows, c_cols]
+        strides = [c_elems, c_elems, c_elems, c_cols, c1]
+        off = [c0, c0, c0, c0, c0]
+
+        a_view = pto.make_tensor_view(A_ptr, shape=shape, strides=strides)
+        c_view = pto.make_tensor_view(C_ptr, shape=shape, strides=strides)
+
+        a_part = pto.partition_view(a_view, offsets=off, sizes=shape)
+        c_part = pto.partition_view(c_view, offsets=off, sizes=shape)
+
+        a_tile = pto.alloc_tile(shape=[rows, cols], dtype=pto_dtype)
+        c_tile = pto.alloc_tile(shape=[rows, cols], dtype=pto_dtype)
+
+        pto.tile.load(a_part, a_tile)
+        tile_op_fn(a_tile, c_tile)
+        pto.tile.store(c_tile, c_part)
+
+    kernel_body.__name__ = fn_name
+    return pto.jit(
+        name=fn_name,
+        kernel_kind=kernel_kind,
+        target=target,
+        backend=backend,
+    )(kernel_body)
+
+
+def make_input_signed(shape, dtype, torch, seed=42):
+    """Return an NPU tensor filled with signed random small integers.
+
+    Includes negative values so abs/relu are meaningful.
+    """
+    rng = np.random.RandomState(seed)
+    x = rng.randint(-10, 10, size=shape).astype(np.float32)
+    return torch.from_numpy(x).to(device="npu:0", dtype=dtype)
+
+
+def launch_and_check_unary(
+    *,
+    op_name: str,
+    kernel_handle,
+    ref_fn: Callable,
+    shape: tuple[int, int],
+    dtype_str: str,
+    torch,
+    rtol: float = 1e-6,
+    atol: float = 1e-6,
+    seed: int = 42,
+):
+    """Compile, launch, and numerical-check one unary kernel specialization."""
+    torch_dt = _torch_dtype(torch, dtype_str)
+
+    if op_name in POSITIVE_INPUT_OPS:
+        x = make_input(shape, torch_dt, torch, seed=seed)
+        ref = ref_fn(x.cpu().numpy())
+    else:
+        x = make_input_signed(shape, torch_dt, torch, seed=seed)
+        ref = ref_fn(x.cpu().numpy())
+    z = torch.empty(shape, dtype=torch_dt, device="npu:0")
+    stream = _npu_stream(torch)
+
+    t0 = time.perf_counter()
+    compiled = kernel_handle.compile()
+    compile_s = time.perf_counter() - t0
+
+    t0 = time.perf_counter()
+    compiled[1, stream](x.data_ptr(), z.data_ptr())
+    torch.npu.synchronize()
+    launch_s = time.perf_counter() - t0
+
+    actual = z.cpu().numpy()
+    eff_rtol = 1e-2 if op_name == "rsqrt" else rtol
+    eff_atol = 1e-2 if op_name == "rsqrt" else atol
+    np.testing.assert_allclose(actual, ref, rtol=eff_rtol, atol=eff_atol)
+    return compile_s, launch_s
+
+
+def make_scalar_kernel(
+    op_name: str,
+    rows: int,
+    cols: int,
+    scalar_val: float,
+    dtype_str: str = "float32",
+    target: str = "a3",
+    backend: str = "vpto",
+    kernel_kind: str = "vector",
+):
+    """Return a ``@pto.jit`` KernelHandle for a scalar-tile binary op."""
+    tile_op_fn = SCALAR_OPS[op_name][0]
+    pto_dtype = getattr(pto, dtype_str)
+    fn_name = f"scl_{op_name}_{dtype_str}_{rows}x{cols}_s{str(scalar_val).replace('.', 'p')}"
+
+    def kernel_body(
+        A_ptr: pto.ptr(pto_dtype, "gm"),
+        C_ptr: pto.ptr(pto_dtype, "gm"),
+    ) -> None:
+        c0 = pto.const(0)
+        c1 = pto.const(1)
+        c_rows = pto.const(rows)
+        c_cols = pto.const(cols)
+        c_elems = pto.const(rows * cols)
+
+        shape = [c1, c1, c1, c_rows, c_cols]
+        strides = [c_elems, c_elems, c_elems, c_cols, c1]
+        off = [c0, c0, c0, c0, c0]
+
+        a_view = pto.make_tensor_view(A_ptr, shape=shape, strides=strides)
+        c_view = pto.make_tensor_view(C_ptr, shape=shape, strides=strides)
+
+        a_part = pto.partition_view(a_view, offsets=off, sizes=shape)
+        c_part = pto.partition_view(c_view, offsets=off, sizes=shape)
+
+        a_tile = pto.alloc_tile(shape=[rows, cols], dtype=pto_dtype)
+        c_tile = pto.alloc_tile(shape=[rows, cols], dtype=pto_dtype)
+
+        pto.tile.load(a_part, a_tile)
+        tile_op_fn(a_tile, scalar_val, c_tile)
+        pto.tile.store(c_tile, c_part)
+
+    kernel_body.__name__ = fn_name
+    return pto.jit(
+        name=fn_name,
+        kernel_kind=kernel_kind,
+        target=target,
+        backend=backend,
+    )(kernel_body)
+
+
+def launch_and_check_scalar(
+    *,
+    op_name: str,
+    kernel_handle,
+    ref_fn: Callable,
+    shape: tuple[int, int],
+    scalar_val: float,
+    dtype_str: str,
+    torch,
+    rtol: float = 1e-6,
+    atol: float = 1e-6,
+    seed: int = 42,
+):
+    """Compile, launch, and numerical-check one scalar-tile kernel."""
+    torch_dt = _torch_dtype(torch, dtype_str)
+
+    x = make_input(shape, torch_dt, torch, seed=seed)
+    z = torch.empty(shape, dtype=torch_dt, device="npu:0")
+    ref = ref_fn(x.cpu().numpy(), scalar_val)
+    stream = _npu_stream(torch)
+
+    t0 = time.perf_counter()
+    compiled = kernel_handle.compile()
+    compile_s = time.perf_counter() - t0
+
+    t0 = time.perf_counter()
+    compiled[1, stream](x.data_ptr(), z.data_ptr())
     torch.npu.synchronize()
     launch_s = time.perf_counter() - t0
 

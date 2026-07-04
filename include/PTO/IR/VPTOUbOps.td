@@ -107,6 +107,11 @@ class PTO_UBufUnaryOp<string mnemonic, list<Trait> traits = []>
 }
 
 def PTO_UBVnotOp : PTO_UBufUnaryOp<"ub.vnot">;
+def PTO_UBVabsOp : PTO_UBufUnaryOp<"ub.vabs">;
+def PTO_UBVreluOp : PTO_UBufUnaryOp<"ub.vrelu">;
+def PTO_UBVexpOp : PTO_UBufUnaryOp<"ub.vexp">;
+def PTO_UBVsqrtOp : PTO_UBufUnaryOp<"ub.vsqrt">;
+def PTO_UBVrsqrtOp : PTO_UBufUnaryOp<"ub.vrsqrt">;
 
 //===----------------------------------------------------------------------===//
 // PTO_UBufShiftOp — unary shift with scalar distance
@@ -151,6 +156,10 @@ class PTO_UBufShiftOp<string mnemonic, list<Trait> traits = []>
 
 def PTO_UBVshlOp : PTO_UBufShiftOp<"ub.vshl">;
 def PTO_UBVshrOp : PTO_UBufShiftOp<"ub.vshr">;
+def PTO_UBVmulSOp : PTO_UBufShiftOp<"ub.vmuls">;
+def PTO_UBVaddSOp : PTO_UBufShiftOp<"ub.vadds">;
+def PTO_UBVmaxSOp : PTO_UBufShiftOp<"ub.vmaxs">;
+def PTO_UBVminSOp : PTO_UBufShiftOp<"ub.vmins">;
 
 def PTO_UBSetMaskOp : PTO_Op<"ub.set_mask", [
     DeclareOpInterfaceMethods<MemoryEffectsOpInterface>

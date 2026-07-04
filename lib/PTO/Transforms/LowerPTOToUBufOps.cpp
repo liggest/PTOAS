@@ -46,8 +46,6 @@ static constexpr int64_t kRepeatStrideMax = 255;
 static constexpr int64_t kSmallRptBinOp = 4;
 static constexpr int64_t kDefaultRepeatStride = 8;
 static constexpr unsigned kMaskLen = 64;
-static constexpr uint64_t kA3VecLocalMemBytes = 1572864 / 8;
-static constexpr uint64_t kLocalMemAlignmentBytes = 256;
 
 //===----------------------------------------------------------------------===//
 // Utilities
@@ -227,81 +225,32 @@ struct LowerPTOToUBufOpsPass
     MLIRContext *ctx = &getContext();
     OpBuilder builder(ctx);
 
-    // A3: sequential memory planning for alloc_tile buffers.  Must run first
-    // so lowering sees PtrType from CastPtrOp instead of tile_buf.
+    // A3: consume planned addresses from PTOPlanMemory / PTOMaterializeTileHandles.
+    // Each alloc_tile must carry a planned addr operand.
     DenseMap<Value, SmallVector<int64_t, 2>> tileShapes;
     {
       SmallVector<pto::AllocTileOp> allocOps;
       func.walk([&](pto::AllocTileOp op) { allocOps.push_back(op); });
-      bool hasPlannedAddr = llvm::any_of(
-          allocOps, [](pto::AllocTileOp op) { return static_cast<bool>(op.getAddr()); });
-      bool allPlanned = llvm::all_of(
-          allocOps, [](pto::AllocTileOp op) { return static_cast<bool>(op.getAddr()); });
-      if (hasPlannedAddr && !allPlanned) {
-        func.emitError("A3 UB lowering requires either all alloc_tile ops to "
-                       "carry planned addresses or none of them to do so");
-        signalPassFailure();
-        return;
-      }
-      if (!allocOps.empty() && !hasPlannedAddr &&
-          !allowManualAllocationFallback) {
-        func.emitError("A3 VPTO UB lowering requires planned alloc_tile "
-                       "addresses; run PTOViewToMemref, PTOPlanMemory, "
-                       "PTOResolveReservedBuffers, and "
-                       "PTOMaterializeTileHandles before "
-                       "LowerPTOToUBufOps, or pass "
-                       "--allow-manual-allocation-fallback for isolated tests");
-        signalPassFailure();
-        return;
-      }
-      uint64_t offset = 0;
       for (auto op : allocOps) {
         auto tbTy = cast<pto::TileBufType>(op.getResult().getType());
         auto shape = tbTy.getShape();
-        uint64_t numElems = 1;
-        for (auto d : shape) {
-          if (d == ShapedType::kDynamic || d < 0) {
-            op.emitError("A3 UB manual allocation requires static tile shapes");
-            signalPassFailure();
-            return;
-          }
-          numElems *= d;
-        }
-        uint64_t elemSize = getElementSize(tbTy.getElementType());
-        if (elemSize == 0) {
-          op.emitError("A3 UB manual allocation does not support element type ")
-              << tbTy.getElementType();
-          signalPassFailure();
-          return;
-        }
-        uint64_t totalBytes = numElems * elemSize;
-        uint64_t paddedBytes =
-            (totalBytes + kLocalMemAlignmentBytes - 1) /
-            kLocalMemAlignmentBytes * kLocalMemAlignmentBytes;
-        if (!hasPlannedAddr && offset + paddedBytes > kA3VecLocalMemBytes) {
-          op.emitError("A3 UB manual allocation exceeds local memory capacity: ")
-              << (offset + paddedBytes) << " bytes requested, capacity is "
-              << kA3VecLocalMemBytes << " bytes";
+        Value addr = op.getAddr();
+        if (!addr) {
+          op.emitError("A3 VPTO UB lowering requires planned alloc_tile "
+                       "addresses; run PTOViewToMemref, PTOPlanMemory, "
+                       "PTOResolveReservedBuffers, and "
+                       "PTOMaterializeTileHandles before LowerPTOToUBufOps");
           signalPassFailure();
           return;
         }
         builder.setInsertionPoint(op);
-        Value addr = op.getAddr();
-        if (!addr) {
-          auto addrConst = builder.create<arith::ConstantOp>(
-              op.getLoc(), builder.getI64IntegerAttr(offset));
-          addr = addrConst.getResult();
-        }
         auto ptrTy = pto::PtrType::get(
             ctx, tbTy.getElementType(),
             pto::AddressSpaceAttr::get(ctx, pto::AddressSpace::VEC));
-        auto pc = builder.create<pto::CastPtrOp>(
-            op.getLoc(), ptrTy, addr);
+        auto pc = builder.create<pto::CastPtrOp>(op.getLoc(), ptrTy, addr);
         tileShapes[pc.getResult()] = SmallVector<int64_t, 2>(shape);
         op.getResult().replaceAllUsesWith(pc.getResult());
         op.erase();
-        if (!hasPlannedAddr)
-          offset += paddedBytes;
       }
     }
 
@@ -504,7 +453,7 @@ struct LowerPTOToUBufOpsPass
       SmallVector<pto::TNotOp> ops;
       func.walk([&](pto::TNotOp op) { ops.push_back(op); });
       for (auto op : ops) {
-        auto info = extractTileShapeInfo(op, tileShapes);
+        auto info = extractTileShapeInfoFromValue(op.getDst(), tileShapes);
         if (!info)
           continue;
         auto [dstPtr, srcPtr, ptrType] =
@@ -514,6 +463,202 @@ struct LowerPTOToUBufOpsPass
           continue;
         dispatchUnary<pto::UBVnotOp>(op.getLoc(), builder, dstPtr, srcPtr,
                                      ptrType, *info);
+        op.erase();
+      }
+    }
+
+    // ---- tabs → pto.ub.vabs ----
+    {
+      SmallVector<pto::TAbsOp> ops;
+      func.walk([&](pto::TAbsOp op) { ops.push_back(op); });
+      for (auto op : ops) {
+        auto info = extractTileShapeInfoFromValue(op.getDst(), tileShapes);
+        if (!info)
+          continue;
+        auto [dstPtr, srcPtr, ptrType] =
+            lowerShiftOpCommon(builder, ctx, op, op.getDst(), op.getSrc(),
+                               tileShapes);
+        if (!dstPtr)
+          continue;
+        dispatchUnary<pto::UBVabsOp>(op.getLoc(), builder, dstPtr, srcPtr,
+                                     ptrType, *info);
+        op.erase();
+      }
+    }
+
+    // ---- trelu → pto.ub.vrelu ----
+    {
+      SmallVector<pto::TReluOp> ops;
+      func.walk([&](pto::TReluOp op) { ops.push_back(op); });
+      for (auto op : ops) {
+        auto info = extractTileShapeInfoFromValue(op.getDst(), tileShapes);
+        if (!info)
+          continue;
+        auto [dstPtr, srcPtr, ptrType] =
+            lowerShiftOpCommon(builder, ctx, op, op.getDst(), op.getSrc(),
+                               tileShapes);
+        if (!dstPtr)
+          continue;
+        dispatchUnary<pto::UBVreluOp>(op.getLoc(), builder, dstPtr, srcPtr,
+                                      ptrType, *info);
+        op.erase();
+      }
+    }
+
+    // ---- tneg → pto.ub.vmuls(dst, src, -1) ----
+    {
+      SmallVector<pto::TNegOp> ops;
+      func.walk([&](pto::TNegOp op) { ops.push_back(op); });
+      for (auto op : ops) {
+        auto info = extractTileShapeInfoFromValue(op.getDst(), tileShapes);
+        if (!info)
+          continue;
+        auto [dstPtr, srcPtr, ptrType] =
+            lowerShiftOpCommon(builder, ctx, op, op.getDst(), op.getSrc(),
+                               tileShapes);
+        if (!dstPtr)
+          continue;
+        Value minusOne = builder.create<arith::ConstantOp>(
+            op.getLoc(), builder.getI64IntegerAttr(-1));
+        dispatchShift<pto::UBVmulSOp>(op.getLoc(), builder, dstPtr, srcPtr,
+                                      minusOne, ptrType, *info);
+        op.erase();
+      }
+    }
+
+    // ---- texp → pto.ub.vexp ----
+    {
+      SmallVector<pto::TExpOp> ops;
+      func.walk([&](pto::TExpOp op) { ops.push_back(op); });
+      for (auto op : ops) {
+        auto info = extractTileShapeInfoFromValue(op.getDst(), tileShapes);
+        if (!info)
+          continue;
+        auto [dstPtr, srcPtr, ptrType] =
+            lowerShiftOpCommon(builder, ctx, op, op.getDst(), op.getSrc(),
+                               tileShapes);
+        if (!dstPtr)
+          continue;
+        dispatchUnary<pto::UBVexpOp>(op.getLoc(), builder, dstPtr, srcPtr,
+                                     ptrType, *info);
+        op.erase();
+      }
+    }
+
+    // ---- tsqrt → pto.ub.vsqrt ----
+    {
+      SmallVector<pto::TSqrtOp> ops;
+      func.walk([&](pto::TSqrtOp op) { ops.push_back(op); });
+      for (auto op : ops) {
+        auto info = extractTileShapeInfoFromValue(op.getDst(), tileShapes);
+        if (!info)
+          continue;
+        auto [dstPtr, srcPtr, ptrType] =
+            lowerShiftOpCommon(builder, ctx, op, op.getDst(), op.getSrc(),
+                               tileShapes);
+        if (!dstPtr)
+          continue;
+        dispatchUnary<pto::UBVsqrtOp>(op.getLoc(), builder, dstPtr, srcPtr,
+                                      ptrType, *info);
+        op.erase();
+      }
+    }
+
+    // ---- trsqrt → pto.ub.vrsqrt ----
+    {
+      SmallVector<pto::TRsqrtOp> ops;
+      func.walk([&](pto::TRsqrtOp op) { ops.push_back(op); });
+      for (auto op : ops) {
+        auto info = extractTileShapeInfoFromValue(op.getDst(), tileShapes);
+        if (!info)
+          continue;
+        auto [dstPtr, srcPtr, ptrType] =
+            lowerShiftOpCommon(builder, ctx, op, op.getDst(), op.getSrc(),
+                               tileShapes);
+        if (!dstPtr)
+          continue;
+        dispatchUnary<pto::UBVrsqrtOp>(op.getLoc(), builder, dstPtr, srcPtr,
+                                       ptrType, *info);
+        op.erase();
+      }
+    }
+
+    // ---- tadds → pto.ub.vadds ----
+    {
+      SmallVector<pto::TAddSOp> ops;
+      func.walk([&](pto::TAddSOp op) { ops.push_back(op); });
+      for (auto op : ops) {
+        auto info = extractTileShapeInfo(op, tileShapes);
+        if (!info)
+          continue;
+        auto [dstPtr, srcPtr, ptrType] =
+            lowerShiftOpCommon(builder, ctx, op, op.getDst(), op.getSrc(),
+                               tileShapes);
+        if (!dstPtr)
+          continue;
+        Value scalarI64 = convertScalarToI64(builder, op.getLoc(), op.getScalar());
+        dispatchShift<pto::UBVaddSOp>(op.getLoc(), builder, dstPtr, srcPtr,
+                                      scalarI64, ptrType, *info);
+        op.erase();
+      }
+    }
+
+    // ---- tmuls → pto.ub.vmuls ----
+    {
+      SmallVector<pto::TMulSOp> ops;
+      func.walk([&](pto::TMulSOp op) { ops.push_back(op); });
+      for (auto op : ops) {
+        auto info = extractTileShapeInfo(op, tileShapes);
+        if (!info)
+          continue;
+        auto [dstPtr, srcPtr, ptrType] =
+            lowerShiftOpCommon(builder, ctx, op, op.getDst(), op.getSrc0(),
+                               tileShapes);
+        if (!dstPtr)
+          continue;
+        Value scalarI64 = convertScalarToI64(builder, op.getLoc(), op.getScalar());
+        dispatchShift<pto::UBVmulSOp>(op.getLoc(), builder, dstPtr, srcPtr,
+                                      scalarI64, ptrType, *info);
+        op.erase();
+      }
+    }
+
+    // ---- tmaxs → pto.ub.vmaxs ----
+    {
+      SmallVector<pto::TMaxSOp> ops;
+      func.walk([&](pto::TMaxSOp op) { ops.push_back(op); });
+      for (auto op : ops) {
+        auto info = extractTileShapeInfo(op, tileShapes);
+        if (!info)
+          continue;
+        auto [dstPtr, srcPtr, ptrType] =
+            lowerShiftOpCommon(builder, ctx, op, op.getDst(), op.getSrc(),
+                               tileShapes);
+        if (!dstPtr)
+          continue;
+        Value scalarI64 = convertScalarToI64(builder, op.getLoc(), op.getScalar());
+        dispatchShift<pto::UBVmaxSOp>(op.getLoc(), builder, dstPtr, srcPtr,
+                                      scalarI64, ptrType, *info);
+        op.erase();
+      }
+    }
+
+    // ---- tmins → pto.ub.vmins ----
+    {
+      SmallVector<pto::TMinSOp> ops;
+      func.walk([&](pto::TMinSOp op) { ops.push_back(op); });
+      for (auto op : ops) {
+        auto info = extractTileShapeInfo(op, tileShapes);
+        if (!info)
+          continue;
+        auto [dstPtr, srcPtr, ptrType] =
+            lowerShiftOpCommon(builder, ctx, op, op.getDst(), op.getSrc(),
+                               tileShapes);
+        if (!dstPtr)
+          continue;
+        Value scalarI64 = convertScalarToI64(builder, op.getLoc(), op.getScalar());
+        dispatchShift<pto::UBVminSOp>(op.getLoc(), builder, dstPtr, srcPtr,
+                                      scalarI64, ptrType, *info);
         op.erase();
       }
     }
@@ -677,6 +822,18 @@ private:
     return {dstPtr, src0Ptr, src1Ptr, tmpPtr, ptrType};
   }
 
+  Value convertScalarToI64(OpBuilder &builder, Location loc, Value scalar) {
+    if (scalar.getType().isF32() || scalar.getType().isF16()) {
+      unsigned width = scalar.getType().isF32() ? 32 : 16;
+      auto intTy = builder.getIntegerType(width);
+      Value asInt = builder.create<arith::BitcastOp>(loc, intTy, scalar);
+      return builder.create<arith::ExtSIOp>(loc, builder.getI64Type(), asInt);
+    }
+    if (scalar.getType().isInteger(64))
+      return scalar;
+    return builder.create<arith::ExtSIOp>(loc, builder.getI64Type(), scalar);
+  }
+
   std::tuple<Value, Value, pto::PtrType>
   lowerShiftOpCommon(OpBuilder &builder, MLIRContext *ctx, Operation *op,
                      Value dstVal, Value srcVal,
@@ -708,9 +865,11 @@ private:
     int64_t tailElements = totalV % epr;
 
     auto emitShift = [&](Value d, Value s) {
-      Value shiftDist = b.create<arith::ExtSIOp>(
-          loc, b.getI64Type(), scalar);
-      b.create<UBop>(loc, d, s, shiftDist,
+      Value scalarI64 = scalar;
+      if (scalarI64.getType() != b.getI64Type())
+        scalarI64 = b.create<arith::ExtSIOp>(
+            loc, b.getI64Type(), scalar);
+      b.create<UBop>(loc, d, s, scalarI64,
                      i64c1(loc, b), i64c1(loc, b), i64c1(loc, b),
                      i64c8(loc, b), i64c8(loc, b));
     };

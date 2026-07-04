@@ -548,11 +548,6 @@ def LowerPTOToUBufOps : Pass<"pto-lower-to-ubuf-ops", "mlir::func::FuncOp"> {
     TileLang path unchanged.
   }];
   let constructor = "mlir::pto::createLowerPTOToUBufOpsPass()";
-  let options = [
-    Option<"allowManualAllocationFallback", "allow-manual-allocation-fallback", "bool",
-           /*default=*/"false",
-           "Allow LowerPTOToUBufOps to assign temporary UB addresses when alloc_tile ops do not carry planned addresses">
-  ];
   let dependentDialects = [
     "mlir::pto::PTODialect",
     "mlir::func::FuncDialect",

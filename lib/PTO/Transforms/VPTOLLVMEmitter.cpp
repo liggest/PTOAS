@@ -4799,6 +4799,112 @@ private:
   LoweringState &state;
 };
 
+// LowerUBufScalarBinaryPattern — scalar-tile binary ops (VADDS/VMULS/VMAXS/VMINS).
+// Unlike VSHL/VSHR, these have signed intrinsics (s16/s32, not u16/u32) and
+// pass the scalar as a float for f32/f16 element types.
+template <typename ScalarOp>
+class LowerUBufScalarBinaryPattern final : public OpConversionPattern<ScalarOp> {
+public:
+  explicit LowerUBufScalarBinaryPattern(TypeConverter &typeConverter,
+                                     MLIRContext *context, LoweringState &state)
+      : OpConversionPattern<ScalarOp>(typeConverter, context), state(state) {}
+
+  LogicalResult
+  matchAndRewrite(ScalarOp op, typename ScalarOp::Adaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    auto ptrType = mlir::cast<pto::PtrType>(op.getSrc().getType());
+    Type elemType = ptrType.getElementType();
+    std::string elemFrag = getElementTypeFragment(elemType);
+    if (elemFrag.empty())
+      return rewriter.notifyMatchFailure(
+          op, "unsupported element type for ubuf scalar mul op");
+
+    // All four scalar-tile ops keep signed intrinsic names (s16/s32).
+    std::string calleeName;
+    if constexpr (std::is_same_v<ScalarOp, pto::UBVmulSOp>)
+      calleeName = "llvm.hivm.VMULS." + elemFrag;
+    else if constexpr (std::is_same_v<ScalarOp, pto::UBVaddSOp>)
+      calleeName = "llvm.hivm.VADDS." + elemFrag;
+    else if constexpr (std::is_same_v<ScalarOp, pto::UBVmaxSOp>)
+      calleeName = "llvm.hivm.VMAXS." + elemFrag;
+    else if constexpr (std::is_same_v<ScalarOp, pto::UBVminSOp>)
+      calleeName = "llvm.hivm.VMINS." + elemFrag;
+    else
+      return rewriter.notifyMatchFailure(op, "unsupported ubuf scalar binary op");
+
+    Value dst = adaptor.getDst();
+    Value src = adaptor.getSrc();
+    if (!dst || !src ||
+        !isa<LLVM::LLVMPointerType>(dst.getType()) ||
+        !isa<LLVM::LLVMPointerType>(src.getType()))
+      return rewriter.notifyMatchFailure(
+          op, "unexpected converted ubuf scalar binary operand types");
+
+    Location loc = op.getLoc();
+    auto i64Ty = rewriter.getI64Type();
+    auto getI64 = [&](Value v) -> Value {
+      return castIntegerLikeTo(op, v, i64Ty);
+    };
+    auto maskByte = [&](Value v) -> Value {
+      return rewriter.create<arith::AndIOp>(
+          loc, v, rewriter.create<arith::ConstantOp>(
+                     loc, rewriter.getI64IntegerAttr(0xff)));
+    };
+    auto shl = [&](Value v, uint64_t amount) -> Value {
+      return rewriter.create<arith::ShLIOp>(
+          loc, v, rewriter.create<arith::ConstantOp>(
+                       loc, rewriter.getI64IntegerAttr(amount)));
+    };
+    // Unary config layout (same as VABS/VSHR): repeat[63:56]
+    Value config = rewriter.create<arith::ConstantOp>(
+        loc, rewriter.getI64IntegerAttr(0));
+    config = rewriter.create<arith::OrIOp>(
+        loc, config, shl(maskByte(getI64(adaptor.getRepeat())), 56));
+    config = rewriter.create<arith::OrIOp>(
+        loc, config, maskByte(getI64(adaptor.getDstBlockStride())));
+    config = rewriter.create<arith::OrIOp>(
+        loc, config, shl(maskByte(getI64(adaptor.getSrcBlockStride())), 16));
+    config = rewriter.create<arith::OrIOp>(
+        loc, config, shl(maskByte(getI64(adaptor.getDstRepeatStride())), 32));
+    config = rewriter.create<arith::OrIOp>(
+        loc, config, shl(maskByte(getI64(adaptor.getSrcRepeatStride())), 40));
+
+    Value scalarI64 = getI64(adaptor.getShiftDist());
+
+    // For float element types, the scalar was bitcast to i64 for the UB IR.
+    // Recover the float value via trunc + bitcast.
+    if (elemType.isF32() || elemType.isF16()) {
+      unsigned width = elemType.isF32() ? 32 : 16;
+      Type intTy = rewriter.getIntegerType(width);
+      Type floatTy = elemType.isF32()
+                          ? rewriter.getF32Type()
+                          : rewriter.getF16Type();
+      Value trunced = rewriter.create<arith::TruncIOp>(loc, intTy, scalarI64);
+      Value scalarFloat = rewriter.create<LLVM::BitcastOp>(loc, floatTy, trunced);
+      auto funcType = rewriter.getFunctionType(
+          TypeRange{dst.getType(), src.getType(), floatTy, i64Ty},
+          TypeRange{});
+      rewriter.create<func::CallOp>(loc, calleeName, TypeRange{},
+                                    ValueRange{dst, src, scalarFloat, config});
+      state.plannedDecls.push_back(PlannedDecl{calleeName, funcType});
+    } else {
+      // Integer: VMULS/VADDS/etc .s16/s32 takes i64 scalar directly.
+      auto funcType = rewriter.getFunctionType(
+          TypeRange{dst.getType(), src.getType(), i64Ty, i64Ty},
+          TypeRange{});
+      rewriter.create<func::CallOp>(loc, calleeName, TypeRange{},
+                                    ValueRange{dst, src, scalarI64, config});
+      state.plannedDecls.push_back(PlannedDecl{calleeName, funcType});
+    }
+
+    rewriter.eraseOp(op);
+    return success();
+  }
+
+private:
+  LoweringState &state;
+};
+
 template <typename UnaryOp>
 class LowerUBufUnaryOpPattern final : public OpConversionPattern<UnaryOp> {
 public:
@@ -4822,6 +4928,19 @@ public:
     std::string calleeName;
     if constexpr (std::is_same_v<UnaryOp, pto::UBVnotOp>)
       calleeName = "llvm.hivm.VNOT." + elemFrag;
+    else if constexpr (std::is_same_v<UnaryOp, pto::UBVabsOp>)
+      calleeName = "llvm.hivm.VABS." + elemFrag;
+    else if constexpr (std::is_same_v<UnaryOp, pto::UBVreluOp>) {
+      if (elemFrag == "u16" || elemFrag == "u32")
+        return rewriter.notifyMatchFailure(
+            op, "VRELU not available for unsigned integer types");
+      calleeName = "llvm.hivm.VRELU." + elemFrag;
+    } else if constexpr (std::is_same_v<UnaryOp, pto::UBVexpOp>)
+      calleeName = "llvm.hivm.VEXP." + elemFrag;
+    else if constexpr (std::is_same_v<UnaryOp, pto::UBVsqrtOp>)
+      calleeName = "llvm.hivm.VSQRT." + elemFrag;
+    else if constexpr (std::is_same_v<UnaryOp, pto::UBVrsqrtOp>)
+      calleeName = "llvm.hivm.VRSQRT." + elemFrag;
     else
       return rewriter.notifyMatchFailure(op, "unsupported ubuf unary op");
 
@@ -10555,9 +10674,27 @@ static void populateVPTOOpLoweringPatterns(VPTOTypeConverter &typeConverter,
         typeConverter, patterns.getContext(), state);
     patterns.add<LowerUBufUnaryOpPattern<pto::UBVnotOp>>(
         typeConverter, patterns.getContext(), state);
+    patterns.add<LowerUBufUnaryOpPattern<pto::UBVabsOp>>(
+        typeConverter, patterns.getContext(), state);
+    patterns.add<LowerUBufUnaryOpPattern<pto::UBVreluOp>>(
+        typeConverter, patterns.getContext(), state);
+    patterns.add<LowerUBufUnaryOpPattern<pto::UBVexpOp>>(
+        typeConverter, patterns.getContext(), state);
+    patterns.add<LowerUBufUnaryOpPattern<pto::UBVsqrtOp>>(
+        typeConverter, patterns.getContext(), state);
+    patterns.add<LowerUBufUnaryOpPattern<pto::UBVrsqrtOp>>(
+        typeConverter, patterns.getContext(), state);
     patterns.add<LowerUBufShiftOpPattern<pto::UBVshlOp>>(
         typeConverter, patterns.getContext(), state);
     patterns.add<LowerUBufShiftOpPattern<pto::UBVshrOp>>(
+        typeConverter, patterns.getContext(), state);
+    patterns.add<LowerUBufScalarBinaryPattern<pto::UBVmulSOp>>(
+        typeConverter, patterns.getContext(), state);
+    patterns.add<LowerUBufScalarBinaryPattern<pto::UBVaddSOp>>(
+        typeConverter, patterns.getContext(), state);
+    patterns.add<LowerUBufScalarBinaryPattern<pto::UBVmaxSOp>>(
+        typeConverter, patterns.getContext(), state);
+    patterns.add<LowerUBufScalarBinaryPattern<pto::UBVminSOp>>(
         typeConverter, patterns.getContext(), state);
     patterns.add<LowerUBSetMaskOpPattern>(
         typeConverter, patterns.getContext(), state);
@@ -10692,8 +10829,17 @@ static void configureVPTOOpLoweringTarget(ConversionTarget &target,
     target.addIllegalOp<pto::UBVandOp>();
     target.addIllegalOp<pto::UBVorOp>();
     target.addIllegalOp<pto::UBVnotOp>();
+    target.addIllegalOp<pto::UBVabsOp>();
+    target.addIllegalOp<pto::UBVreluOp>();
+    target.addIllegalOp<pto::UBVexpOp>();
+    target.addIllegalOp<pto::UBVsqrtOp>();
+    target.addIllegalOp<pto::UBVrsqrtOp>();
     target.addIllegalOp<pto::UBVshlOp>();
     target.addIllegalOp<pto::UBVshrOp>();
+    target.addIllegalOp<pto::UBVmulSOp>();
+    target.addIllegalOp<pto::UBVaddSOp>();
+    target.addIllegalOp<pto::UBVmaxSOp>();
+    target.addIllegalOp<pto::UBVminSOp>();
     target.addIllegalOp<pto::UBSetMaskOp>();
     target.addIllegalOp<pto::UBSetMaskCountOp>();
     target.addIllegalOp<pto::UBSetMaskNormOp>();

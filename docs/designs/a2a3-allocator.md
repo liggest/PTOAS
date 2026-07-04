@@ -229,10 +229,8 @@ Option 1 is implemented and validated for A3 VPTO:
 - A3 VPTO enters the local tile planning path.
 - `PTOViewToMemref`, `PTOPlanMemory`, `PTOResolveReservedBuffers`, and
   `PTOMaterializeTileHandles` run before A3 UB intrinsic lowering.
-- `LowerPTOToUBufOps` requires planned addresses by default
-  (`allowManualAllocationFallback` defaults to `false`).
-- The manual allocator remains available only via
-  `--allow-manual-allocation-fallback` for standalone or direct pass tests.
+- `LowerPTOToUBufOps` requires planned addresses unconditionally; the manual
+  sequential allocator has been removed entirely.
 - A3 transfer lowering accepts planned-path GM memref views and lowers them to
   MTE ops before VPTO LLVM emission.
 - Dead `memref.subview` / `memref.reinterpret_cast` / `memref.cast` ops are
@@ -244,12 +242,11 @@ Option 1 is implemented and validated for A3 VPTO:
 
 | Step | Status |
 |---|---|
-| Step 1: Keep current fix as safety net | Done — 256-byte alignment, capacity checks |
+| Step 1: Keep current fix as safety net | Superseded — manual allocator removed entirely |
 | Step 2: Add A3 pre-planning pipeline | Done — `PTOViewToMemref` + `PTOPlanMemory` + materialization |
-| Step 3: Split `LowerPTOToUBufOps` | Partial — fallback is opt-in via `allowManualAllocationFallback`; full split deferred |
-| Step 4: Remove manual allocator | Pending — fallback still present behind option |
+| Step 3: Split `LowerPTOToUBufOps` | N/A — manual fallback removed, no split needed |
+| Step 4: Remove manual allocator | Done — `LowerPTOToUBufOps` requires planned addresses unconditionally |
 
 ### Validated Coverage
 
 - UB lit suite: `49 passed` (48 existing + 1 planned-address test).
-- Binary elementwise hardware e2e: `171 passed`.
