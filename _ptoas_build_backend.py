@@ -258,6 +258,10 @@ def build_editable(wheel_directory, config_settings=None, metadata_directory=Non
         f"Tag: {tag}\n"
         "Build: editable\n"
     ).encode()
+    entry_points = (
+        "[console_scripts]\n"
+        "ptoas=ptoas._launcher:main\n"
+    ).encode()
     metadata_content = (
         "Metadata-Version: 2.1\n"
         "Name: ptoas\n"
@@ -271,6 +275,7 @@ def build_editable(wheel_directory, config_settings=None, metadata_directory=Non
     record_lines = [
         f"{pth_filename},{_sha256_record(pth_bytes)},{len(pth_bytes)}",
         f"{dist_info_dir}/WHEEL,{_sha256_record(wheel_meta)},{len(wheel_meta)}",
+        f"{dist_info_dir}/entry_points.txt,{_sha256_record(entry_points)},{len(entry_points)}",
         f"{dist_info_dir}/METADATA,{_sha256_record(metadata_content)},{len(metadata_content)}",
         f"{dist_info_dir}/RECORD,,",
     ]
@@ -279,6 +284,7 @@ def build_editable(wheel_directory, config_settings=None, metadata_directory=Non
     with zipfile.ZipFile(wheel_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr(pth_filename, pth_bytes)
         zf.writestr(f"{dist_info_dir}/WHEEL", wheel_meta)
+        zf.writestr(f"{dist_info_dir}/entry_points.txt", entry_points)
         zf.writestr(f"{dist_info_dir}/METADATA", metadata_content)
         zf.writestr(f"{dist_info_dir}/RECORD", record_content)
 
