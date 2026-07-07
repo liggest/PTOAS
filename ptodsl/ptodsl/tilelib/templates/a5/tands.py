@@ -9,17 +9,16 @@
 
 from ptodsl import pto
 
+from ._common import SIGNED_DTYPES, UNSIGNED_DTYPES
 from ._elementwise import register_scalar_binary
 
+
+_INT_DTYPES = SIGNED_DTYPES + UNSIGNED_DTYPES
 
 template_tands = register_scalar_binary(
     op="pto.tands",
     name="template_tands",
     vector_op=pto.vand,
     broadcast_scalar=True,
-    dtypes=[
-        ("i8", "i8", "i8"),
-        ("i16", "i16", "i16"),
-        ("i32", "i32", "i32"),
-    ],
+    dtypes=[(dtype, dtype, dtype) for dtype in _INT_DTYPES],
 )

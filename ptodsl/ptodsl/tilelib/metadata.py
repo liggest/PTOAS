@@ -161,7 +161,16 @@ def _pad_token(value: str) -> str:
         "Zero": "Zero",
         "0x0": "Null",
         "0x00": "Null",
+        "0x1": "Zero",
+        "0x01": "Zero",
+        "0x2": "Max",
+        "0x02": "Max",
+        "0x3": "Min",
+        "0x03": "Min",
         0: "Null",
+        1: "Zero",
+        2: "Max",
+        3: "Min",
     }
     return aliases.get(value, aliases.get(str(value), str(value)))
 

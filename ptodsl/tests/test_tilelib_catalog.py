@@ -529,6 +529,63 @@ class TileLibCatalogTest(unittest.TestCase):
                         selected.specialize(**specs).mlir_text(),
                     )
 
+    def test_simple_elementwise_vec_smoke_shapes_render(self):
+        cases = (
+            ("pto.tabs", ("src", "dst"), "f16", "pto.vabs"),
+            ("pto.tand", ("src0", "src1", "dst"), "i32", "pto.vand"),
+            ("pto.tands", ("src", "scalar", "dst"), "i16", "pto.vand"),
+            ("pto.tnot", ("src", "dst"), "ui8", "pto.vnot"),
+            ("pto.tor", ("src0", "src1", "dst"), "i32", "pto.vor"),
+            ("pto.tors", ("src", "scalar", "dst"), "i16", "pto.vor"),
+            ("pto.tneg", ("src", "dst"), "f16", "pto.vneg"),
+            ("pto.tmin", ("src0", "src1", "dst"), "i32", "pto.vmin"),
+        )
+        for op, parameter_names, dtype_name, expected_op in cases:
+            with self.subTest(op=op):
+                specs = {}
+                for name in parameter_names:
+                    if name == "scalar":
+                        specs[name] = ScalarSpec(dtype=ScalarType(dtype_name), value=1)
+                    else:
+                        specs[name] = TileSpec(
+                            shape=(8, 64),
+                            dtype=ScalarType(dtype_name),
+                            memory_space="vec",
+                        )
+                selected = select("pto.tmin" if op == "pto.tmin" else op, "a5", specs)
+                self.assertIn(expected_op, selected.specialize(**specs).mlir_text())
+
+    def test_tcmp_vec_tiles_render_packed_mask_paths(self):
+        cases = (
+            ("f32", "pto.pdintlv_b8", "PK"),
+            ("f16", "pto.pbitcast", "PK"),
+            ("i8", "pto.vcmp", "NORM"),
+        )
+        for dtype_name, expected_op, expected_dist in cases:
+            with self.subTest(dtype=dtype_name):
+                specs = {
+                    "src0": TileSpec(
+                        shape=(8, 64),
+                        dtype=ScalarType(dtype_name),
+                        memory_space="vec",
+                    ),
+                    "src1": TileSpec(
+                        shape=(8, 64),
+                        dtype=ScalarType(dtype_name),
+                        memory_space="vec",
+                    ),
+                    "dst": TileSpec(
+                        shape=(8, 64),
+                        dtype=ScalarType("i8"),
+                        memory_space="vec",
+                    ),
+                }
+                selected = select("pto.tcmp", "a5", specs)
+                self.assertEqual(selected.name, "template_tcmp")
+                mlir = selected.specialize(**specs).mlir_text()
+                self.assertIn(expected_op, mlir)
+                self.assertIn(expected_dist, mlir)
+
     def test_tcvt_additional_rowwise_versions_render(self):
         signatures = {
             ("i32", "f32"): "template_tcvt_i32_to_f32",
@@ -670,6 +727,25 @@ class TileLibCatalogTest(unittest.TestCase):
                 selected = select("pto.tload", "a5", specs)
                 self.assertEqual(selected.name, expected_name)
                 self.assertIn(expected_op, selected.specialize(**specs).mlir_text())
+
+    def test_tload_accepts_numeric_pad_value_metadata(self):
+        specs = {
+            "src": ViewSpec(
+                shape=(1, 1, 1, 60, 60),
+                dtype=ScalarType("i32"),
+                strides=(3600, 3600, 3600, 60, 1),
+            ),
+            "dst": TileSpec(
+                shape=(64, 64),
+                dtype=ScalarType("i32"),
+                memory_space="vec",
+                valid_shape=(60, 60),
+                pad_value="0x2",
+            ),
+        }
+        selected = select("pto.tload", "a5", specs)
+        self.assertEqual(selected.name, "template_tload_nd2nd")
+        self.assertIn("pto.mte_gm_ub", selected.specialize(**specs).mlir_text())
 
     def test_tstore_versions_render(self):
         cases = (

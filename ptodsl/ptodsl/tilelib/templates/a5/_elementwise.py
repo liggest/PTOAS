@@ -11,11 +11,17 @@ from ptodsl import pto
 import ptodsl.tilelib as tilelib
 
 
+def _ub_or_vec_row_major(operand_memory_spaces, operand_b_layouts, operand_s_layouts, **_):
+    return (
+        all(space in {"ub", "vec"} for space in operand_memory_spaces)
+        and all(layout == "row_major" for layout in operand_b_layouts)
+        and all(layout == "none_box" for layout in operand_s_layouts)
+    )
+
+
 def _common_constraints(*operand_names):
     return [
-        tilelib.check_memory_space("ub"),
-        tilelib.check_layout("row_major"),
-        tilelib.check_s_layout("none_box"),
+        _ub_or_vec_row_major,
         tilelib.require_same_valid_shape(*operand_names),
     ]
 

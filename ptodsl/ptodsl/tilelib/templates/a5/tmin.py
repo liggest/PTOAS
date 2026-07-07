@@ -10,14 +10,26 @@
 from ptodsl import pto
 import ptodsl.tilelib as tilelib
 
+from ._common import NUMERIC_DTYPES
+
+
+def _ub_or_vec_row_major(operand_memory_spaces, operand_b_layouts, operand_s_layouts, **_):
+    return (
+        all(space in {"ub", "vec"} for space in operand_memory_spaces)
+        and all(layout == "row_major" for layout in operand_b_layouts)
+        and all(layout == "none_box" for layout in operand_s_layouts)
+    )
+
 
 @tilelib.tile_template(
     op="pto.tmin",
     target="a5",
     name="template_tmin",
-    dtypes=[("f32", "f32", "f32")],
-    layouts=["row_major"],
-    memory_spaces=["ub"],
+    dtypes=[(dtype, dtype, dtype) for dtype in NUMERIC_DTYPES],
+    constraints=[
+        _ub_or_vec_row_major,
+        tilelib.require_same_valid_shape("src0", "src1", "dst"),
+    ],
     priority=0,
     id=0,
     loop_depth=2,
