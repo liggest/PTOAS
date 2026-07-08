@@ -205,3 +205,34 @@ template_tcvt_f16_to_i32 = _register_tcvt(
     load_dist="UNPK_B16",
     convert_mask="src_full",
 )
+
+template_tcvt_f16_to_f32 = _register_tcvt(
+    name="template_tcvt_f16_to_f32",
+    dtypes=("f16", "f32"),
+    idx=8,
+    rnd=False,
+    part="even",
+    load_dist="UNPK_B16",
+    convert_mask="src_full",
+)
+
+template_tcvt_bf16_to_i32 = _register_tcvt(
+    name="template_tcvt_bf16_to_i32",
+    dtypes=("bf16", "i32"),
+    idx=9,
+    rnd=True,
+    sat="sat",
+    part="even",
+    load_dist="UNPK_B16",
+    convert_mask="src_full",
+)
+
+template_tcvt_ui8_to_ui16 = _register_tcvt(
+    name="template_tcvt_ui8_to_ui16",
+    dtypes=("ui8", "ui16"),
+    idx=10,
+    rnd=False,
+    part="even",
+    load_dist="UNPK_B8",
+    convert_mask="src_full",
+)

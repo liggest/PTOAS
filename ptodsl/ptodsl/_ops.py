@@ -1804,7 +1804,38 @@ def vcmax(v, mask):
 
 def vcadd(v, mask):
     """``pto.vcadd`` – cross-lane add (sum reduction)."""
-    return _emit_unary_vec_op(_pto.VcaddOp, v, mask)
+    _reject_low_precision_vreg_operands(v, context="pto.vcadd(...)")
+    raw_v = unwrap_surface_value(v)
+    input_type = _pto.VRegType(raw_v.type)
+    elem_type = input_type.element_type
+    result_elem_type = elem_type
+    result_lanes = input_type.element_count
+    if IntegerType.isinstance(elem_type):
+        int_type = IntegerType(elem_type)
+        if int_type.width == 8:
+            if int_type.is_unsigned:
+                result_elem_type = IntegerType.get_unsigned(16)
+            elif int_type.is_signed:
+                result_elem_type = IntegerType.get_signed(16)
+            else:
+                result_elem_type = IntegerType.get_signless(16)
+            result_lanes = input_type.element_count // 2
+        elif int_type.width == 16:
+            if int_type.is_unsigned:
+                result_elem_type = IntegerType.get_unsigned(32)
+            elif int_type.is_signed:
+                result_elem_type = IntegerType.get_signed(32)
+            else:
+                result_elem_type = IntegerType.get_signless(32)
+            result_lanes = input_type.element_count // 2
+    result_type = _resolve(vreg_type(result_lanes, result_elem_type))
+    return wrap_surface_value(
+        _pto.VcaddOp(
+            result_type,
+            raw_v,
+            unwrap_surface_value(mask),
+        ).result
+    )
 
 
 def vcmin(v, mask):

@@ -37,11 +37,14 @@ version parity, and validation under the real VPTO pipeline.
 These are the current items to resolve or explicitly validate before making
 PTODSL the default TileLib backend for VPTO.
 
+For a more detailed template-by-template parity matrix, see
+`tilelib-template-parity-gaps.md`.
+
 | Area | Risk | Current state / next check |
 |---|---|---|
 | `trowsum` i16 | High | ST smoke includes an i16 case, but PTODSL currently registers `f16`, `f32`, and `i32` only. Add i16 parity or prove the case should not be legal. |
 | `tfmod` / `trem` f16 | Medium-high | PTODSL uses the generic remainder path over f16. Legacy expands even/odd halves through f32 and converts back. Numerical differences are likely for f16. |
-| `tfillpad`, `tfillpad_expand`, `tfillpad_inplace` | Medium-high | Needs ST validation for physical padding, alignment, inplace stores, and pad-value behavior. |
+| `tfillpad`, `tfillpad_expand`, `tfillpad_inplace` | Medium | Smoke ST passes. Full parity still needs physical-padding and inplace column-expansion validation. |
 | `tinsert` non-basic modes | High | PTODSL currently covers basic UB vec-to-vec insertion. Legacy covers additional acc/mat/NZ/quant/relu and mode-driven paths. |
 | High-precision math attributes | High when used | High-precision paths remain to be ported or validated for `tdiv`, `tdivs`, `trecip`, `tcolexpanddiv`, `trowexpanddiv`, `tlog`, `texp`, and `tsqrt`. |
 | `tcvt` versions | Medium | PTODSL has several registered conversions and round-mode handling, but full legacy dtype/version parity still needs ST coverage. |
@@ -54,7 +57,7 @@ Recommended fix order:
 1. `trowsum` i16.
 2. f16 `tfmod` / `trem` parity.
 3. `tinsert` non-basic variants that appear in ST.
-4. `tfillpad*` alignment and physical-padding cases.
+4. `tfillpad*` full physical-padding and inplace column-expansion cases.
 5. High-precision math attribute paths.
 6. `tcvt` and `tbinop` version-selection parity.
 7. Full row/column reduction, arg reduction, cube, and GEMV validation.

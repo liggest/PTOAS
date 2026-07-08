@@ -22,7 +22,7 @@ def register_row_arg(*, op, name, reduce_op, cmp_mode):
         op=op,
         target="a5",
         name=name,
-        dtypes=[(dtype, dtype, "i32") for dtype in NUMERIC_DTYPES],
+        dtypes=[(dtype, dtype, index_dtype) for dtype in NUMERIC_DTYPES for index_dtype in ("i32", "ui32")],
         constraints=[
             tilelib.check_memory_space("ub"),
             tilelib.check_layout("row_major"),

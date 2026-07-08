@@ -661,6 +661,9 @@ class TileLibCatalogTest(unittest.TestCase):
             ("f32", "f16"): "template_tcvt_f32_to_f16",
             ("f32", "bf16"): "template_tcvt_f32_to_bf16",
             ("f16", "i32"): "template_tcvt_f16_to_i32",
+            ("f16", "f32"): "template_tcvt_f16_to_f32",
+            ("bf16", "i32"): "template_tcvt_bf16_to_i32",
+            ("ui8", "ui16"): "template_tcvt_ui8_to_ui16",
         }
         for (src_dtype, dst_dtype), expected_name in signatures.items():
             with self.subTest(signature=(src_dtype, dst_dtype)):
@@ -671,6 +674,18 @@ class TileLibCatalogTest(unittest.TestCase):
                 selected = select("pto.tcvt", "a5", specs)
                 self.assertEqual(selected.name, expected_name)
                 self.assertIn("pto.vcvt", selected.specialize(**specs).mlir_text())
+
+    def test_tcolexpanddiv_i32_uses_float_divide_path(self):
+        specs = {
+            "src0": TileSpec(shape=(8, 64), dtype=ScalarType("i32")),
+            "src1": TileSpec(shape=(1, 64), dtype=ScalarType("i32")),
+            "dst": TileSpec(shape=(8, 64), dtype=ScalarType("i32")),
+        }
+        selected = select("pto.tcolexpanddiv", "a5", specs)
+        self.assertEqual(selected.name, "template_tcolexpanddiv_i32")
+        mlir = selected.specialize(**specs).mlir_text()
+        self.assertIn("pto.vcvt", mlir)
+        self.assertIn("pto.vdiv", mlir)
 
     def test_tmrgsort_multi_list3_and_4_render(self):
         cases = (

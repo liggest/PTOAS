@@ -3262,15 +3262,14 @@ struct PTOViewToMemrefPass
         auto rmodeAttr = op.getRmodeAttr(); // PTO_RoundModeAttr
         auto satModeAttr = op.getSatModeAttr();
 
-        auto newOp = rewriter.create<pto::TCvtOp>(
-            op.getLoc(),
+        replaceOpWithClonedAttrs<pto::TCvtOp>(
+            rewriter,
+            op,
             TypeRange{},
             src,
             dst,
             rmodeAttr,
             satModeAttr);
-
-        rewriter.replaceOp(op, newOp->getResults());
       }
 
       DefaultInlineVector<mlir::pto::TDivOp> divops;

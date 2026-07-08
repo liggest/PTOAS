@@ -83,7 +83,7 @@ def register_rowsum():
         op="pto.trowsum",
         target="a5",
         name="template_trowsum",
-        dtypes=[("f16", "f16", "f16"), ("f32", "f32", "f32"), ("i32", "i32", "i32")],
+        dtypes=[("f16", "f16", "f16"), ("f32", "f32", "f32"), ("i16", "i16", "i16"), ("i32", "i32", "i32")],
         constraints=[
             tilelib.check_memory_space("ub"),
             tilelib.check_layout("row_major"),
@@ -102,16 +102,36 @@ def register_rowsum():
         lanes = pto.elements_per_vreg(dtype)
         one_mask, _ = pto.make_mask(dtype, 1)
 
-        for row in range(0, valid_rows, 1):
-            first_mask, remained = pto.make_mask(dtype, valid_cols)
-            first = pto.vlds(src[row, 0:])
-            acc = pto.vcadd(first, first_mask)
-            for col in range(lanes, valid_cols, lanes):
-                mask, remained = pto.make_mask(dtype, remained)
-                value = pto.vlds(src[row, col:])
-                reduced = pto.vcadd(value, mask)
-                acc = pto.vadd(acc, reduced, one_mask)
-            pto.vsts(acc, dst[row, 0:], one_mask, dist=element_store_dist(dtype))
+        if str(dtype) == "i16":
+            acc_mask, _ = pto.make_mask(pto.i32, 1)
+            zero = pto.vbr(pto.i32(0))
+            for row in range(0, valid_rows, 1):
+                remained = valid_cols
+                acc = zero
+                for col in range(0, valid_cols, lanes):
+                    mask, remained = pto.make_mask(dtype, remained)
+                    value = pto.vlds(src[row, col:])
+                    reduced = pto.vcadd(value, mask)
+                    acc = pto.vadd(acc, reduced, acc_mask)
+                converted = pto.vcvt(
+                    acc,
+                    dtype,
+                    acc_mask,
+                    sat=pto.VcvtSatMode.NOSAT,
+                    part=pto.VcvtPartMode.EVEN,
+                )
+                pto.vsts(converted, dst[row, 0:], one_mask, dist=element_store_dist(dtype))
+        else:
+            for row in range(0, valid_rows, 1):
+                first_mask, remained = pto.make_mask(dtype, valid_cols)
+                first = pto.vlds(src[row, 0:])
+                acc = pto.vcadd(first, first_mask)
+                for col in range(lanes, valid_cols, lanes):
+                    mask, remained = pto.make_mask(dtype, remained)
+                    value = pto.vlds(src[row, col:])
+                    reduced = pto.vcadd(value, mask)
+                    acc = pto.vadd(acc, reduced, one_mask)
+                pto.vsts(acc, dst[row, 0:], one_mask, dist=element_store_dist(dtype))
 
     return template
 
