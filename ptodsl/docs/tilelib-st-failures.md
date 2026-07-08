@@ -23,7 +23,8 @@ mani_log/fixed_attr/summary.tsv
 
 The following smoke testcases now build, run, and compare successfully with
 PTODSL: `tcolexpand`, `tcolexpandmax`, `tcolexpandmin`, `tcolexpandmul`,
-`softmax`, `tcolmax`, `tcolmin`, `tlrelu`, `tload`, `tmatmul`, and `tmov`.
+`softmax`, `tcolmax`, `tcolmin`, `tlrelu`, `tload`, `tmatmul`, `tmov`,
+`tpartadd`, `tpartmax`, `tpartmin`, and `tpartmul`.
 
 | Testcase | Stage | Failure type | Main error / observation |
 |---|---|---|---|
@@ -67,3 +68,6 @@ PTODSL: `tcolexpand`, `tcolexpandmax`, `tcolexpandmin`, `tcolexpandmul`,
   the ST summary output rather than repeated here.
 - `tfillpad` previously failed through `tload`. Focused reruns show it now reaches
   its own template-candidate failure.
+- `tpartadd`, `tpartmax`, `tpartmin`, and `tpartmul` were fixed by preserving
+  `TileSpec.valid_shape` when rendering entry `tile_buf` types. See
+  `mani_log/tpart_fix/summary.tsv`.

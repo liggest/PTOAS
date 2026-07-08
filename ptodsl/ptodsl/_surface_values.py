@@ -746,7 +746,11 @@ def emit_as_ptr(surface_value):
 
 
 _TILE_TYPE_RE = re.compile(
-    r"!pto\.tile_buf<(?P<space>[^,]+),\s*(?P<shape>.+?)x(?P<elem>[^,x>]+),\s*valid=(?P<valid>[^,>]+)(?:,.*)?>"
+    r"!pto\.tile_buf<(?P<space>[^,]+),\s*"
+    r"(?P<shape>(?:\?|[0-9]+)(?:x(?:\?|[0-9]+))*)x"
+    r"(?P<elem>[^,>]+),\s*"
+    r"valid=(?P<valid>(?:\?|[0-9]+)(?:x(?:\?|[0-9]+))*)"
+    r"(?:,.*)?>"
 )
 
 

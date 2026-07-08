@@ -129,10 +129,11 @@ class TileSpec:
 
     def mlir_type(self):
         rows, cols = self.shape
+        valid_shape = self.valid_shape if self.valid_shape is not None else self.shape
         return _tile_buf_type(
             [rows, cols],
             scalar_descriptor(self.dtype),
-            [rows, cols],
+            list(valid_shape),
             blayout=_layout_token(self.b_layout),
             address_space=self.memory_space,
             slayout=_layout_token(self.s_layout),
