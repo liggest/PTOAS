@@ -40,6 +40,9 @@ def register_row_expand_binary(*, op, name, vector_op, dtypes):
         target="a5",
         name=name,
         dtypes=dtypes,
+        iteration_axis="row",
+        op_engine="vector",
+        op_class="broadcast",
         constraints=[
             _ub_or_vec_row_major,
             _valid_row_expand_binary,
@@ -61,6 +64,9 @@ def register_column_expand_binary(*, op, name, vector_op, dtypes):
         target="a5",
         name=name,
         dtypes=dtypes,
+        iteration_axis="column",
+        op_engine="vector",
+        op_class="broadcast",
         constraints=[
             _ub_or_vec_row_major,
             _valid_column_expand_binary,
@@ -82,6 +88,9 @@ def register_row_expand_expdif():
         target="a5",
         name="template_trowexpandexpdif_f32",
         dtypes=[("f32", "f32", "f32")],
+        iteration_axis="row",
+        op_engine="vector",
+        op_class="broadcast",
         constraints=[
             _ub_or_vec_row_major,
             _valid_row_expand_binary,
@@ -104,6 +113,9 @@ def register_row_expand_expdif():
         target="a5",
         name="template_trowexpandexpdif_f16",
         dtypes=[("f16", "f16", "f16")],
+        iteration_axis="row",
+        op_engine="vector",
+        op_class="broadcast",
         constraints=[
             _ub_or_vec_row_major,
             _valid_row_expand_binary,
@@ -130,6 +142,9 @@ def register_column_expand_expdif():
         target="a5",
         name="template_tcolexpandexpdif_f32",
         dtypes=[("f32", "f32", "f32")],
+        iteration_axis="column",
+        op_engine="vector",
+        op_class="broadcast",
         constraints=[
             _ub_or_vec_row_major,
             _valid_column_expand_binary,
@@ -152,6 +167,9 @@ def register_column_expand_expdif():
         target="a5",
         name="template_tcolexpandexpdif_f16",
         dtypes=[("f16", "f16", "f16")],
+        iteration_axis="column",
+        op_engine="vector",
+        op_class="broadcast",
         constraints=[
             _ub_or_vec_row_major,
             _valid_column_expand_binary,

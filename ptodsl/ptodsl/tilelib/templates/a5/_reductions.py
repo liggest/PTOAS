@@ -29,6 +29,9 @@ def register_column_reduction(*, op, name, vector_op, dtypes):
         target="a5",
         name=name,
         dtypes=dtypes,
+        iteration_axis="column",
+        op_engine="vector",
+        op_class="reduction",
         constraints=[
             _ub_or_vec_row_major,
             _has_single_output_row,

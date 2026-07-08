@@ -29,6 +29,9 @@ template_tcolexpanddiv = register_column_expand_binary(
     target="a5",
     name="template_tcolexpanddiv_i32",
     dtypes=[("i32", "i32", "i32")],
+    iteration_axis="column",
+    op_engine="vector",
+    op_class="broadcast",
     constraints=[
         _ub_or_vec_row_major,
         _valid_column_expand_binary,

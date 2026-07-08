@@ -254,12 +254,43 @@ class TemplateMetadata:
     id: int | None = None
     Tail: object = None
     is_post_update: bool = False
+    iteration_axis: str = "none"
+    op_engine: str = "other"
+    op_class: str = "other"
     tags: tuple = ()
+
+    @staticmethod
+    def _normalize_iteration_axis(value):
+        allowed = {"none", "row", "column"}
+        if value not in allowed:
+            raise ValueError(
+                f"unsupported iteration_axis {value!r}; expected one of {', '.join(sorted(allowed))}"
+            )
+        return value
+
+    @staticmethod
+    def _normalize_op_engine(value):
+        allowed = {"vector", "cube", "other"}
+        if value not in allowed:
+            raise ValueError(
+                f"unsupported op_engine {value!r}; expected one of {', '.join(sorted(allowed))}"
+            )
+        return value
+
+    @staticmethod
+    def _normalize_op_class(value):
+        allowed = {"elementwise", "reduction", "broadcast", "movement", "other"}
+        if value not in allowed:
+            raise ValueError(
+                f"unsupported op_class {value!r}; expected one of {', '.join(sorted(allowed))}"
+            )
+        return value
 
     @staticmethod
     def build(*, op, target, name, dtypes=(), layouts=(), memory_spaces=(),
               constraints=(), priority=0, fusible=False, loop_depth=None,
-              id=None, Tail=None, is_post_update=False, tags=()):
+              id=None, Tail=None, is_post_update=False, iteration_axis="none",
+              op_engine="other", op_class="other", tags=()):
         return TemplateMetadata(
             op=op,
             target=target,
@@ -274,6 +305,9 @@ class TemplateMetadata:
             id=id,
             Tail=Tail,
             is_post_update=bool(is_post_update),
+            iteration_axis=TemplateMetadata._normalize_iteration_axis(iteration_axis),
+            op_engine=TemplateMetadata._normalize_op_engine(op_engine),
+            op_class=TemplateMetadata._normalize_op_class(op_class),
             tags=tuple(tags),
         )
 

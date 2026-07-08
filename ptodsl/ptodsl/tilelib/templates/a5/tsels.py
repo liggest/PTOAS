@@ -37,6 +37,9 @@ def _tsels_shapes(mask_valid_shape=(), src_valid_shape=(), tmp_valid_shape=(), d
         ("i16", "f16", "f16", "f16", "f16"),
         ("i32", "f16", "f16", "f16", "f16"),
     ],
+    iteration_axis="none",
+    op_engine="vector",
+    op_class="other",
     constraints=[
         tilelib.check_memory_space("ub"),
         tilelib.check_layout("row_major"),

@@ -40,6 +40,9 @@ def _ub_or_vec_row_major(operand_memory_spaces, operand_b_layouts, operand_s_lay
         ("bf16", "bf16"),
         ("f32", "f32"),
     ],
+    iteration_axis="column",
+    op_engine="vector",
+    op_class="broadcast",
     constraints=[
         _ub_or_vec_row_major,
         _valid_column_expand,

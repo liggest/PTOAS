@@ -23,6 +23,9 @@ def register_row_arg(*, op, name, reduce_op, cmp_mode):
         target="a5",
         name=name,
         dtypes=[(dtype, dtype, index_dtype) for dtype in NUMERIC_DTYPES for index_dtype in ("i32", "ui32")],
+        iteration_axis="row",
+        op_engine="vector",
+        op_class="reduction",
         constraints=[
             tilelib.check_memory_space("ub"),
             tilelib.check_layout("row_major"),

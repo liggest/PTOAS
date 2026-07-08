@@ -14,7 +14,8 @@ from ._cube import MATMUL_MX_ACC_DTYPES, MATMUL_MX_BIAS_DTYPES, MATMUL_MX_DTYPES
 
 
 @tilelib.tile_template(op="pto.tgemv.mx", target="a5", name="template_tgemv_mx",
-                       dtypes=MATMUL_MX_DTYPES, id=0, loop_depth=1,
+                       dtypes=MATMUL_MX_DTYPES, iteration_axis="none",
+                       op_engine="cube", op_class="other", id=0, loop_depth=1,
                        is_post_update=False, tags=("cube", "gemv", "mx"))
 def template_tgemv_mx(lhs: pto.Tile, lhs_scale: pto.Tile, rhs: pto.Tile, rhs_scale: pto.Tile, dst: pto.Tile):
     _ = lhs_scale, rhs_scale
@@ -24,7 +25,8 @@ def template_tgemv_mx(lhs: pto.Tile, lhs_scale: pto.Tile, rhs: pto.Tile, rhs_sca
 
 
 @tilelib.tile_template(op="pto.tgemv.mx.acc", target="a5", name="template_tgemv_mx_acc",
-                       dtypes=MATMUL_MX_ACC_DTYPES, id=0, loop_depth=1,
+                       dtypes=MATMUL_MX_ACC_DTYPES, iteration_axis="none",
+                       op_engine="cube", op_class="other", id=0, loop_depth=1,
                        is_post_update=False, tags=("cube", "gemv", "mx", "acc"))
 def template_tgemv_mx_acc(acc_in: pto.Tile, lhs: pto.Tile, lhs_scale: pto.Tile,
                           rhs: pto.Tile, rhs_scale: pto.Tile, dst: pto.Tile):
@@ -35,7 +37,8 @@ def template_tgemv_mx_acc(acc_in: pto.Tile, lhs: pto.Tile, lhs_scale: pto.Tile,
 
 
 @tilelib.tile_template(op="pto.tgemv.mx.bias", target="a5", name="template_tgemv_mx_bias",
-                       dtypes=MATMUL_MX_BIAS_DTYPES, id=0, loop_depth=1,
+                       dtypes=MATMUL_MX_BIAS_DTYPES, iteration_axis="none",
+                       op_engine="cube", op_class="other", id=0, loop_depth=1,
                        is_post_update=False, tags=("cube", "gemv", "mx", "bias"))
 def template_tgemv_mx_bias(lhs: pto.Tile, lhs_scale: pto.Tile, rhs: pto.Tile,
                            rhs_scale: pto.Tile, bias: pto.Tile, dst: pto.Tile):

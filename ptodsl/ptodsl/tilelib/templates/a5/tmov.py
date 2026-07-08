@@ -31,6 +31,9 @@ def _ub_or_vec_row_major(operand_memory_spaces, operand_b_layouts, operand_s_lay
         ("i16", "i16"),
         ("i8", "i8"),
     ],
+    iteration_axis="none",
+    op_engine="vector",
+    op_class="movement",
     constraints=[
         _ub_or_vec_row_major,
         tilelib.require_same_valid_shape("src", "dst"),

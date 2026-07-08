@@ -46,6 +46,9 @@ def register_row_extreme(*, op, name, reduce_op, combine_op):
         target="a5",
         name=name,
         dtypes=[(dtype, dtype, dtype) for dtype in NUMERIC_DTYPES],
+        iteration_axis="row",
+        op_engine="vector",
+        op_class="reduction",
         constraints=[
             tilelib.check_memory_space("ub"),
             tilelib.check_layout("row_major"),
@@ -84,6 +87,9 @@ def register_rowsum():
         target="a5",
         name="template_trowsum",
         dtypes=[("f16", "f16", "f16"), ("f32", "f32", "f32"), ("i16", "i16", "i16"), ("i32", "i32", "i32")],
+        iteration_axis="row",
+        op_engine="vector",
+        op_class="reduction",
         constraints=[
             tilelib.check_memory_space("ub"),
             tilelib.check_layout("row_major"),
@@ -142,6 +148,9 @@ def register_rowprod():
         target="a5",
         name="template_trowprod",
         dtypes=[("f16", "f16", "f16"), ("f32", "f32", "f32"), ("i16", "i16", "i16"), ("i32", "i32", "i32")],
+        iteration_axis="row",
+        op_engine="vector",
+        op_class="reduction",
         constraints=[
             _ub_or_vec_row_major,
             _single_output_col,

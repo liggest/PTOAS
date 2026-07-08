@@ -32,6 +32,9 @@ def _valid_row_expand(src_valid_shape=(), dst_valid_shape=(), **_):
         ("bf16", "bf16"),
         ("f32", "f32"),
     ],
+    iteration_axis="row",
+    op_engine="vector",
+    op_class="broadcast",
     constraints=[
         tilelib.check_memory_space("ub"),
         tilelib.check_layout("row_major"),

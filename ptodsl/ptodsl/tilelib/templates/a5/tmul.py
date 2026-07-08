@@ -29,6 +29,9 @@ def TMul(dst: pto.Tile, src0: pto.Tile, src1: pto.Tile, version):
     name="template_tmul_2d_no_post_update",
     id=0,
     dtypes=[("f32", "f32", "f32")],
+    iteration_axis="none",
+    op_engine="vector",
+    op_class="elementwise",
     constraints=[
         tilelib.check_memory_space("ub"),
         tilelib.check_layout("row_major"),
@@ -50,6 +53,9 @@ def template_tmul_2d_no_post_update(src0: pto.Tile, src1: pto.Tile, dst: pto.Til
     name="template_tmul_1d_no_post_update",
     id=1,
     dtypes=[("f32", "f32", "f32")],
+    iteration_axis="none",
+    op_engine="vector",
+    op_class="elementwise",
     constraints=[
         tilelib.check_memory_space("ub"),
         tilelib.check_layout("row_major"),
@@ -71,6 +77,9 @@ def template_tmul_1d_no_post_update(src0: pto.Tile, src1: pto.Tile, dst: pto.Til
     name="template_tmul_2d_post_update",
     id=2,
     dtypes=[("f32", "f32", "f32")],
+    iteration_axis="none",
+    op_engine="vector",
+    op_class="elementwise",
     constraints=[
         tilelib.check_memory_space("ub"),
         tilelib.check_layout("row_major"),
@@ -92,6 +101,9 @@ def template_tmul_2d_post_update(src0: pto.Tile, src1: pto.Tile, dst: pto.Tile):
     name="template_tmul_1d_post_update",
     id=3,
     dtypes=[("f32", "f32", "f32")],
+    iteration_axis="none",
+    op_engine="vector",
+    op_class="elementwise",
     constraints=[
         tilelib.check_memory_space("ub"),
         tilelib.check_layout("row_major"),

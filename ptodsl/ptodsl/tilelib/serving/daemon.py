@@ -164,6 +164,9 @@ def _metadata_for_descriptor(descriptor, constraint_context: dict) -> dict:
         "Tail": _metadata_value(metadata.Tail),
         "has_tail": has_tail,
         "is_post_update": metadata.is_post_update,
+        "iteration_axis": metadata.iteration_axis,
+        "op_engine": metadata.op_engine,
+        "op_class": metadata.op_class,
         "tags": list(metadata.tags),
     }
 

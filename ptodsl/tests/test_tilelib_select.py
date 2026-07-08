@@ -185,6 +185,9 @@ class TileLibSelectTest(unittest.TestCase):
         self.assertFalse(chosen.metadata.is_post_update)
         self.assertEqual(chosen.metadata.loop_depth, 2)
         self.assertTrue(callable(chosen.metadata.Tail))
+        self.assertEqual(chosen.metadata.iteration_axis, "none")
+        self.assertEqual(chosen.metadata.op_engine, "vector")
+        self.assertEqual(chosen.metadata.op_class, "elementwise")
         self.assertEqual(chosen.metadata.tags, ("binop", "2d", "no_post_update"))
 
     def test_single_row_tadd_candidates_are_still_all_visible(self):

@@ -124,6 +124,9 @@ class TileLibDaemonTest(unittest.TestCase):
         self.assertEqual(selected["Tail"], {"callable": "has_tail"})
         self.assertFalse(selected["has_tail"])
         self.assertFalse(selected["is_post_update"])
+        self.assertEqual(selected["iteration_axis"], "none")
+        self.assertEqual(selected["op_engine"], "vector")
+        self.assertEqual(selected["op_class"], "elementwise")
         self.assertEqual(selected["tags"], ["binop", "2d", "no_post_update"])
 
     def test_get_metadata_evaluates_tail_for_each_request(self):
