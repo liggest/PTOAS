@@ -117,8 +117,9 @@ jobs:
       PYPTO_REF: main
       PYPTO_WORKSPACE: ${{ github.workspace }}/.work/pypto-ci
       PYPTO_RUN_WORKSPACE: ${{ github.workspace }}/.work/pypto-run-ci
-      PTO_ISA_COMMIT: 016396b57e2c17093f1194e6acd89bb112b0ab24
+      PTO_ISA_COMMIT: 9cf767cbc5d3e4399e2ac2fc5d7197e7f5134fbe
       PTO_ISA_ROOT: ${{ github.workspace }}/.work/pto-isa-ci
+      TORCH_DEVICE_BACKEND_AUTOLOAD: "0"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
