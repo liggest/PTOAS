@@ -313,6 +313,19 @@ def low_precision_vcvt_frontend():
     pto.vsts(roundtrip, dst_ptr, pto.const(0), mask_b32)
 
 
+@pto.jit(target="a5")
+def vec_value_arith_frontend(
+    A_ptr: pto.ptr(pto.f32, "gm"),
+    O_ptr: pto.ptr(pto.f32, "gm"),
+):
+    x4 = scalar.load(A_ptr, 0, contiguous=4)
+    y4 = scalar.load(A_ptr, 4, contiguous=4)
+    scalar.store(x4 + y4, O_ptr, 0)
+    scalar.store(x4 - y4, O_ptr, 4)
+    scalar.store(x4 * y4, O_ptr, 8)
+    scalar.store(x4 / y4, O_ptr, 12)
+
+
 def main() -> None:
     ptoas_bin = resolve_ptoas_binary()
     mixed_backend_example = REPO_ROOT / "ptodsl" / "examples" / "mixed_backend_kernel_module.py"
@@ -593,6 +606,31 @@ module attributes {pto.target_arch = "a5", pto.kernel_kind = #pto.kernel_kind<ve
         "'pto.vcvt' op unsupported vcvt source/result element type pair" in invalid_lowp_stderr,
         "invalid low-precision vcvt artifact should fail specifically on vcvt pair verification",
     )
+
+    vec_arith_text = vec_value_arith_frontend.compile().mlir_text()
+    expect("vector<4xf32>" in vec_arith_text, "vec_value_arith_frontend source MLIR should contain vector<4xf32> values")
+    expect(
+        "arith.addf" in vec_arith_text
+        and "arith.subf" in vec_arith_text
+        and "arith.mulf" in vec_arith_text
+        and "arith.divf" in vec_arith_text,
+        "vec_value_arith_frontend source MLIR should contain all four VecValue arithmetic ops before frontend verification",
+    )
+    vec_arith_frontend_texts = run_ptoas_frontend_verify(
+        ptoas_bin,
+        vec_arith_text,
+        "vec_value_arith_frontend PTODSL artifact",
+    )
+    expect(
+        len(vec_arith_frontend_texts) == 1,
+        "vec_value_arith_frontend PTODSL artifact should lower to exactly one backend child module",
+    )
+    vec_arith_frontend_text = vec_arith_frontend_texts[0]
+    expect(
+        vec_arith_frontend_text == "",
+        "vec_value_arith_frontend should compile through the VPTO fallback object path when --emit-pto-ir is unavailable",
+    )
+
     print("ptodsl_ptoas_frontend_verify: PASS")
 
 
