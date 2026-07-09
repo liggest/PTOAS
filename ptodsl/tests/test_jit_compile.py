@@ -1678,6 +1678,22 @@ def scalar_contiguous_vector_probe():
     scalar.store(y4, data_ptr, 4)
 
 
+@pto.jit(target="a5")
+def scalar_contiguous_vector_arith_probe():
+    data_tile = pto.alloc_tile(shape=[1, 24], dtype=pto.f32, valid_shape=[1, 24])
+    data_ptr = data_tile.as_ptr()
+    x4 = scalar.load(data_ptr, 0, contiguous=4)
+    y4 = scalar.load(data_ptr, 4, contiguous=4)
+    sum4 = x4 + y4
+    diff4 = x4 - y4
+    prod4 = x4 * y4
+    quot4 = x4 / y4
+    scalar.store(sum4, data_ptr, 8)
+    scalar.store(diff4, data_ptr, 12)
+    scalar.store(prod4, data_ptr, 16)
+    scalar.store(quot4, data_ptr, 20)
+
+
 @pto.simt
 def scalar_contiguous_local_alloc_buffer_helper():
     data = pto.alloc_buffer((16,), pto.f32)
@@ -3067,6 +3083,7 @@ def main() -> None:
     integer_loop_bound_probe.verify()
     scalar_pointer_offset_probe.verify()
     scalar_contiguous_vector_probe.verify()
+    scalar_contiguous_vector_arith_probe.verify()
     addptr_surface_probe.verify()
     simt_pointer_offset_probe.verify()
     scalar_store_element_coercion_probe.verify()
@@ -5078,6 +5095,30 @@ def main() -> None:
         TypeError,
         lambda: scalar_contiguous_scalar_store_probe.compile(),
         "scalar.store(scalar, ..., contiguous=N) is not supported",
+    )
+
+    vec_arith_text = scalar_contiguous_vector_arith_probe.compile().mlir_text()
+    expect_parse_roundtrip_and_verify(vec_arith_text, "scalar contiguous vector arithmetic specialization")
+    expect("arith.addf" in vec_arith_text, "VecValue addition should lower to arith.addf")
+    expect("arith.subf" in vec_arith_text, "VecValue subtraction should lower to arith.subf")
+    expect("arith.mulf" in vec_arith_text, "VecValue multiplication should lower to arith.mulf")
+    expect("arith.divf" in vec_arith_text, "VecValue true division should lower to arith.divf")
+    expect("vector<4xf32>" in vec_arith_text, "vector arithmetic should keep vector<4xf32> type")
+    expect(
+        vec_arith_text.count("arith.addf") == 1,
+        "VecValue __add__ should emit exactly one arith.addf",
+    )
+    expect(
+        vec_arith_text.count("arith.subf") == 1,
+        "VecValue __sub__ should emit exactly one arith.subf",
+    )
+    expect(
+        vec_arith_text.count("arith.mulf") == 1,
+        "VecValue __mul__ should emit exactly one arith.mulf",
+    )
+    expect(
+        vec_arith_text.count("arith.divf") == 1,
+        "VecValue __truediv__ should emit exactly one arith.divf",
     )
 
     addptr_surface_text = addptr_surface_probe.compile().mlir_text()
