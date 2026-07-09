@@ -84,9 +84,7 @@ def template_trandom(
 
     for row in range(0, valid_rows, 1):
         remained = valid_cols
-        counter_add = lanes
         for repeat in range(0, repeats, 1):
-            _ = repeat
             tmp0, tmp1, tmp2, tmp3 = ctr0, ctr1, ctr2, ctr3
             tmp_key0, tmp_key1 = key0_vec, key1_vec
             for _round in range(0, rounds, 1):
@@ -95,20 +93,22 @@ def template_trandom(
                     tmp0, tmp1, tmp2, tmp3, tmp_key0, tmp_key1, const0, const1, full_mask
                 )
 
-            mask, remained = pto.make_mask(dtype, remained)
-            pto.vsts(tmp0, dst[row, (counter_add - lanes):], mask)
-            counter_add = counter_add + lanes
-            mask, remained = pto.make_mask(dtype, remained)
-            pto.vsts(tmp1, dst[row, (counter_add - lanes):], mask)
-            counter_add = counter_add + lanes
-            mask, remained = pto.make_mask(dtype, remained)
-            pto.vsts(tmp2, dst[row, (counter_add - lanes):], mask)
-            counter_add = counter_add + lanes
-            mask, remained = pto.make_mask(dtype, remained)
-            pto.vsts(tmp3, dst[row, (counter_add - lanes):], mask)
-            counter_add = counter_add + lanes
+            tmp_l0, tmp_h0 = pto.vintlv(tmp0, tmp2)
+            tmp_l1, tmp_h1 = pto.vintlv(tmp1, tmp3)
+            tmp0, tmp1 = pto.vintlv(tmp_l0, tmp_l1)
+            tmp2, tmp3 = pto.vintlv(tmp_h0, tmp_h1)
 
-            ctr0, carry = pto.vaddc(ctr0, pto.vbr(pto.ui32(lanes * TRANDOM_ONCE_REPEAT)), full_mask)
+            mask0, remained = pto.make_mask(dtype, remained)
+            mask1, remained = pto.make_mask(dtype, remained)
+            mask2, remained = pto.make_mask(dtype, remained)
+            mask3, remained = pto.make_mask(dtype, remained)
+
+            pto.vsts(tmp0, dst[row, TRANDOM_ONCE_REPEAT * repeat * lanes:], mask0)
+            pto.vsts(tmp1, dst[row, (TRANDOM_ONCE_REPEAT * repeat + 1) * lanes:], mask1)
+            pto.vsts(tmp2, dst[row, (TRANDOM_ONCE_REPEAT * repeat + 2) * lanes:], mask2)
+            pto.vsts(tmp3, dst[row, (TRANDOM_ONCE_REPEAT * repeat + 3) * lanes:], mask3)
+
+            ctr0, carry = pto.vaddc(ctr0, pto.vbr(pto.ui32(lanes)), full_mask)
             ctr1, carry = pto.vaddcs(ctr1, zeros, carry, full_mask)
             ctr2, carry = pto.vaddcs(ctr2, zeros, carry, full_mask)
             ctr3, _ = pto.vaddcs(ctr3, zeros, carry, full_mask)
