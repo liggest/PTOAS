@@ -3740,12 +3740,13 @@ struct PTOViewToMemrefPass
           return;
         }
 
-        rewriter.replaceOpWithNewOp<pto::TLogOp>(
+        auto newOp = rewriter.replaceOpWithNewOp<pto::TLogOp>(
             op,
             TypeRange{},
             src,
             dst,
             op.getPrecisionTypeAttr());
+        newOp->setAttrs(op->getAttrs());
       }
 
       DefaultInlineVector<mlir::pto::TLReluOp> lreluops;
