@@ -7,7 +7,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 """PTODSL TileLib template for the aligned ``pto.tsort32`` path."""
 
-from ptodsl import pto, scalar
+from ptodsl import pto
 import ptodsl.tilelib as tilelib
 
 
@@ -148,7 +148,7 @@ def template_tsort32_with_tmp(src: pto.Tile, idx: pto.Tile, tmp: pto.Tile, dst: 
     repeat_num_per_row = (valid_cols + BLOCK_SIZE - 1) // BLOCK_SIZE
     src_tail_per_row = valid_cols % BLOCK_SIZE
     pad_value = _pad_min(dtype)
-    src_shape_bytes_per_row = valid_cols * elem_bytes
+    src_shape_bytes_per_row = src.shape[1] * elem_bytes
 
     if src_shape_bytes_per_row <= MAX_UB_TMP:
         len_burst = (src_shape_bytes_per_row + BLOCK_SIZE - 1) // BLOCK_SIZE
@@ -233,39 +233,9 @@ def template_tsort32_with_tmp(src: pto.Tile, idx: pto.Tile, tmp: pto.Tile, dst: 
                     pad_vec = pto.vdup(pad_value, pad_mask)
                     pto.vsts(pad_vec, tmp[0, tmp_last_offset:], pad_mask)
 
-                pto.vbitsort(
-                    pto.addptr(dst_ptr, row * dst_stride + tail_dst_offset),
-                    tmp_ptr,
-                    pto.addptr(idx_ptr, row * idx_stride + tail_src_offset),
-                    1,
-                )
-
-                # The ST golden compares only the first src_tail_per_row output
-                # pairs from the padded tail block. Match that truncated prefix
-                # explicitly for the large unaligned f32 path.
-                if str(dtype) == "f32":
-                    checked_valid_pairs = max(0, 2 * src_tail_per_row - BLOCK_SIZE)
-                    pad_pairs = src_tail_per_row - checked_valid_pairs
-                    checked_valid_elems = checked_valid_pairs * type_coef
-                    prefix_elems = src_tail_per_row * type_coef
-
-                    for elem in range(0, checked_valid_elems, 1):
-                        scalar.store(
-                            scalar.load(dst[row, tail_dst_offset + elem]),
-                            tmp[0, pad_pairs * type_coef + elem],
-                        )
-
-                    for pair in range(0, pad_pairs, 1):
-                        scalar.store(pad_value, tmp[0, pair * type_coef])
-                        scalar.store(pto.f32(0), tmp[0, pair * type_coef + 1])
-
-                    len_burst = (prefix_elems * elem_bytes + BLOCK_SIZE - 1) // BLOCK_SIZE
-                    pto.copy_ubuf_to_ubuf(
-                        tmp_ptr,
+                    pto.vbitsort(
                         pto.addptr(dst_ptr, row * dst_stride + tail_dst_offset),
-                        0,
+                        tmp_ptr,
+                        pto.addptr(idx_ptr, row * idx_stride + tail_src_offset),
                         1,
-                        len_burst,
-                        0,
-                        0,
                     )
