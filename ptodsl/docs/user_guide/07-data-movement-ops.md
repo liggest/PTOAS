@@ -166,7 +166,7 @@ pto.mte_gm_ub(gm_src, ub_dst, 0, 256,
 
 ### 7.2.2 UB → GM: `pto.mte_ub_gm`
 
-#### `pto.mte_ub_gm(ub_src: PtrType, gm_dst: PtrType, len_burst: int, *, nburst: tuple[int, int, int], loops: list[tuple[int, int, int]] | None = None) -> None`
+#### `pto.mte_ub_gm(ub_src: PtrType, gm_dst: PtrType, len_burst: int, *, nburst: tuple[int, int, int], loops: list[tuple[int, int, int]] | None = None, l2_cache_ctl: int = 0) -> None`
 
 **Description**: Grouped DMA transfer from Unified Buffer to Global Memory. The MTE reads `len_burst` bytes from each UB row (skipping any padding), writing only valid data to GM.
 
@@ -179,6 +179,7 @@ pto.mte_gm_ub(gm_src, ub_dst, 0, 256,
 | `len_burst` | `int` | Contiguous bytes transferred per burst row |
 | `nburst` | `tuple[int, int, int]` | `(n_burst, src_stride, dst_stride)` — innermost burst group (required) |
 | `loops` | `list[tuple[int, int, int]]` or `None` | Optional outer loop groups, ordered inner to outer |
+| `l2_cache_ctl` | `int` | L2 cache control field, default `0` |
 
 **Returns**: None (side-effect operation).
 
