@@ -325,7 +325,6 @@ def vec_value_arith_simt_body(
     scalar.store(x4 + y4, o_ptr, base)
     scalar.store(x4 - y4, o_ptr, 32 + base)
     scalar.store(x4 * y4, o_ptr, 64 + base)
-    scalar.store(x4 / y4, o_ptr, 96 + base)
 
 
 @pto.jit(target="a5", mode="explicit")
@@ -627,9 +626,8 @@ module attributes {pto.target_arch = "a5", pto.kernel_kind = #pto.kernel_kind<ve
     expect(
         "arith.addf" in vec_arith_text
         and "arith.subf" in vec_arith_text
-        and "arith.mulf" in vec_arith_text
-        and "arith.divf" in vec_arith_text,
-        "vec_value_arith_frontend source MLIR should contain all four VecValue arithmetic ops before frontend verification",
+        and "arith.mulf" in vec_arith_text,
+        "vec_value_arith_frontend source MLIR should contain all three VecValue arithmetic ops before frontend verification",
     )
     vec_arith_frontend_texts = run_ptoas_frontend_verify(
         ptoas_bin,

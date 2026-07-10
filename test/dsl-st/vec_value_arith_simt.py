@@ -11,8 +11,8 @@
 VecValue arithmetic end-to-end ST (SIMT).
 
 Each SIMT thread loads two ``vector<4xf32>`` slices from UB via
-``scalar.load(..., contiguous=4)`` and writes back the four arithmetic
-results (``x+y``, ``x-y``, ``x*y``, ``x/y``) using ``scalar.store``.
+``scalar.load(..., contiguous=4)`` and writes back the three arithmetic
+results (``x+y``, ``x-y``, ``x*y``) using ``scalar.store``.
 """
 
 import numpy as np
@@ -26,7 +26,7 @@ VEC = 4
 N = THREADS * VEC  # element count per operand vector (x and y)
 F32_BYTES = 4
 IN_BYTES = 2 * N * F32_BYTES   # x || y
-OUT_BYTES = 4 * N * F32_BYTES  # x+y || x-y || x*y || x/y
+OUT_BYTES = 3 * N * F32_BYTES  # x+y || x-y || x*y
 SEED = 0x5761
 
 
@@ -39,7 +39,6 @@ def vec_value_arith_simt_body(a_ub, o_ub):
     scalar.store(x + y, o_ub, 0 * N + base)
     scalar.store(x - y, o_ub, 1 * N + base)
     scalar.store(x * y, o_ub, 2 * N + base)
-    scalar.store(x / y, o_ub, 3 * N + base)
 
 
 @pto.jit(
@@ -83,7 +82,6 @@ def make_expected(inp):
         x + y,
         x - y,
         x * y,
-        x / y,
     ]).astype(np.float32)
 
 

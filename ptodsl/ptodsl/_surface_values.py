@@ -322,12 +322,6 @@ class VecValue(_SurfaceValue):
     def __rmul__(self, other):
         return _emit_vec_binary_op("mul", other, self)
 
-    def __truediv__(self, other):
-        return _emit_vec_binary_op("truediv", self, other)
-
-    def __rtruediv__(self, other):
-        return _emit_vec_binary_op("truediv", other, self)
-
 
 def _emit_vec_binary_op(op_name: str, lhs, rhs):
     lhs_raw = unwrap_surface_value(lhs)

@@ -1687,7 +1687,6 @@ def scalar_contiguous_vector_arith_simt_body(a_ub):
     scalar.store(x4 + y4, a_ub, 64 + base)
     scalar.store(x4 - y4, a_ub, 96 + base)
     scalar.store(x4 * y4, a_ub, 128 + base)
-    scalar.store(x4 / y4, a_ub, 160 + base)
 
 
 @pto.jit(target="a5", mode="explicit")
@@ -5110,7 +5109,6 @@ def main() -> None:
     expect("arith.addf" in vec_arith_text, "VecValue addition should lower to arith.addf")
     expect("arith.subf" in vec_arith_text, "VecValue subtraction should lower to arith.subf")
     expect("arith.mulf" in vec_arith_text, "VecValue multiplication should lower to arith.mulf")
-    expect("arith.divf" in vec_arith_text, "VecValue true division should lower to arith.divf")
     expect("vector<4xf32>" in vec_arith_text, "vector arithmetic should keep vector<4xf32> type")
     expect(
         vec_arith_text.count("arith.addf") == 1,
@@ -5123,10 +5121,6 @@ def main() -> None:
     expect(
         vec_arith_text.count("arith.mulf") == 1,
         "VecValue __mul__ should emit exactly one arith.mulf",
-    )
-    expect(
-        vec_arith_text.count("arith.divf") == 1,
-        "VecValue __truediv__ should emit exactly one arith.divf",
     )
 
     addptr_surface_text = addptr_surface_probe.compile().mlir_text()
