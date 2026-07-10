@@ -1678,20 +1678,24 @@ def scalar_contiguous_vector_probe():
     scalar.store(y4, data_ptr, 4)
 
 
-@pto.jit(target="a5")
+@pto.simt
+def scalar_contiguous_vector_arith_simt_body(a_ub):
+    tid = pto.get_tid_x()
+    base = tid * 4
+    x4 = scalar.load(a_ub, base, contiguous=4)
+    y4 = scalar.load(a_ub, 32 + base, contiguous=4)
+    scalar.store(x4 + y4, a_ub, 64 + base)
+    scalar.store(x4 - y4, a_ub, 96 + base)
+    scalar.store(x4 * y4, a_ub, 128 + base)
+    scalar.store(x4 / y4, a_ub, 160 + base)
+
+
+@pto.jit(target="a5", mode="explicit")
 def scalar_contiguous_vector_arith_probe():
-    data_tile = pto.alloc_tile(shape=[1, 24], dtype=pto.f32, valid_shape=[1, 24])
-    data_ptr = data_tile.as_ptr()
-    x4 = scalar.load(data_ptr, 0, contiguous=4)
-    y4 = scalar.load(data_ptr, 4, contiguous=4)
-    sum4 = x4 + y4
-    diff4 = x4 - y4
-    prod4 = x4 * y4
-    quot4 = x4 / y4
-    scalar.store(sum4, data_ptr, 8)
-    scalar.store(diff4, data_ptr, 12)
-    scalar.store(prod4, data_ptr, 16)
-    scalar.store(quot4, data_ptr, 20)
+    scalar_contiguous_vector_arith_simt_body[8, 1, 1](
+        pto.castptr(pto.const(0, dtype=pto.ui64), pto.ptr(pto.f32, "ub"))
+    )
+    pto.pipe_barrier(pto.Pipe.ALL)
 
 
 @pto.simt
@@ -5099,6 +5103,10 @@ def main() -> None:
 
     vec_arith_text = scalar_contiguous_vector_arith_probe.compile().mlir_text()
     expect_parse_roundtrip_and_verify(vec_arith_text, "scalar contiguous vector arithmetic specialization")
+    expect(
+        "pto.simt_launch" in vec_arith_text,
+        "VecValue arithmetic probe should lower through a SIMT launch",
+    )
     expect("arith.addf" in vec_arith_text, "VecValue addition should lower to arith.addf")
     expect("arith.subf" in vec_arith_text, "VecValue subtraction should lower to arith.subf")
     expect("arith.mulf" in vec_arith_text, "VecValue multiplication should lower to arith.mulf")

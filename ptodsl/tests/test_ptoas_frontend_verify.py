@@ -313,17 +313,28 @@ def low_precision_vcvt_frontend():
     pto.vsts(roundtrip, dst_ptr, pto.const(0), mask_b32)
 
 
-@pto.jit(target="a5")
+@pto.simt
+def vec_value_arith_simt_body(
+    a_ptr: pto.ptr(pto.f32, "gm"),
+    o_ptr: pto.ptr(pto.f32, "gm"),
+):
+    tid = pto.get_tid_x()
+    base = tid * 4
+    x4 = scalar.load(a_ptr, base, contiguous=4)
+    y4 = scalar.load(a_ptr, 32 + base, contiguous=4)
+    scalar.store(x4 + y4, o_ptr, base)
+    scalar.store(x4 - y4, o_ptr, 32 + base)
+    scalar.store(x4 * y4, o_ptr, 64 + base)
+    scalar.store(x4 / y4, o_ptr, 96 + base)
+
+
+@pto.jit(target="a5", mode="explicit")
 def vec_value_arith_frontend(
     A_ptr: pto.ptr(pto.f32, "gm"),
     O_ptr: pto.ptr(pto.f32, "gm"),
 ):
-    x4 = scalar.load(A_ptr, 0, contiguous=4)
-    y4 = scalar.load(A_ptr, 4, contiguous=4)
-    scalar.store(x4 + y4, O_ptr, 0)
-    scalar.store(x4 - y4, O_ptr, 4)
-    scalar.store(x4 * y4, O_ptr, 8)
-    scalar.store(x4 / y4, O_ptr, 12)
+    vec_value_arith_simt_body[8, 1, 1](A_ptr, O_ptr)
+    pto.pipe_barrier(pto.Pipe.ALL)
 
 
 def main() -> None:
@@ -609,6 +620,10 @@ module attributes {pto.target_arch = "a5", pto.kernel_kind = #pto.kernel_kind<ve
 
     vec_arith_text = vec_value_arith_frontend.compile().mlir_text()
     expect("vector<4xf32>" in vec_arith_text, "vec_value_arith_frontend source MLIR should contain vector<4xf32> values")
+    expect(
+        "pto.simt_launch" in vec_arith_text,
+        "vec_value_arith_frontend source MLIR should lower through a SIMT launch",
+    )
     expect(
         "arith.addf" in vec_arith_text
         and "arith.subf" in vec_arith_text
