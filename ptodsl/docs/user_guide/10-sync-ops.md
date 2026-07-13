@@ -190,9 +190,16 @@ def gemm_block(
 
 ---
 
-## 10.3 Buffer management: `get_buf`, `rls_buf`
+## 10.3 Buffer management: `get_buf`, `rls_buf`, `get_buf_dyn`, `rls_buf_dyn`
 
 Double-buffering is a common optimization in NPU kernels: while one buffer is being computed on, the other is being loaded with the next block of data. The `get_buf` / `rls_buf` pair coordinates buffer ownership between pipelines.
+
+PTODSL provides two variants:
+
+- **Static** (`get_buf` / `rls_buf`): `buf_id` is an integer literal, suitable when the buffer assignment is fixed at compile time.
+- **Dynamic** (`get_buf_dyn` / `rls_buf_dyn`): `buf_id` is an **index-typed SSA value**, enabling runtime-computed patterns such as SIMT ping-pong buffering where the active buffer toggles per iteration (e.g., `iter & 1`).
+
+The `pipe` and `mode` parameters are identical between the static and dynamic variants.
 
 ### `pto.get_buf(pipe, buf_id, mode=0)`
 
@@ -203,8 +210,8 @@ Double-buffering is a common optimization in NPU kernels: while one buffer is be
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `pipe` | `Pipe` | Pipeline identifier of the acquiring pipeline |
-| `buf_id` | `pto.i64` | Buffer identifier (0-based index into the buffer pool) |
-| `mode` | `pto.i64` | Acquisition mode (default 0) |
+| `buf_id` | `int` | Buffer identifier (0-based static integer index into the buffer pool) |
+| `mode` | `int` | Acquisition mode (default 0) |
 
 **Returns**: None (side-effect operation).
 
@@ -217,12 +224,12 @@ Double-buffering is a common optimization in NPU kernels: while one buffer is be
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `pipe` | `Pipe` | Pipeline identifier of the releasing pipeline |
-| `buf_id` | `pto.i64` | Buffer identifier matching the corresponding `get_buf` |
-| `mode` | `pto.i64` | Release mode (default 0) |
+| `buf_id` | `int` | Buffer identifier matching the corresponding `get_buf` |
+| `mode` | `int` | Release mode (default 0) |
 
 **Returns**: None (side-effect operation).
 
-### Double-buffering example
+### Static double-buffering example
 
 <!-- ptodsl-doc-test: {"mode":"compile_fragment","fixture":"sync_ops.basic","symbol":"sync_ops_basic_probe","compile":{}} -->
 ```python
@@ -240,6 +247,49 @@ pto.get_buf(pto.Pipe.MTE2, 0, 0)
 # ... DMA loads next block into buffer 0 ...
 
 pto.rls_buf(pto.Pipe.MTE2, 0, 0)
+```
+
+### `pto.get_buf_dyn(pipe, buf_id, mode=0)`
+
+**Description**: Acquire a buffer slot with a runtime-computed buffer identifier. The static version `get_buf` accepts an integer literal; this variant accepts an **index-typed SSA value** so the buffer-id can change at runtime.
+
+**Parameters**:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `pipe` | `Pipe` | Pipeline identifier of the acquiring pipeline |
+| `buf_id` | index-like SSA value | Runtime-computed buffer identifier (e.g., `iter & 1` for double-buffering) |
+| `mode` | `int` | Acquisition mode (default 0) |
+
+**Returns**: None (side-effect operation).
+
+### `pto.rls_buf_dyn(pipe, buf_id, mode=0)`
+
+**Description**: Release a buffer slot with a runtime-computed buffer identifier, matching the corresponding `get_buf_dyn` call.
+
+**Parameters**:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `pipe` | `Pipe` | Pipeline identifier of the releasing pipeline |
+| `buf_id` | index-like SSA value | Runtime-computed buffer identifier matching the acquire |
+| `mode` | `int` | Release mode (default 0) |
+
+**Returns**: None (side-effect operation).
+
+### Dynamic double-buffering (ping-pong) example
+
+When the buffer-id toggles between 0 and 1 per loop iteration, compute the
+buf-id from the loop variable:
+
+<!-- ptodsl-doc-test: {"mode":"compile_fragment","fixture":"sync_ops.basic","symbol":"sync_ops_basic_probe","compile":{}} -->
+```python
+# Ping-pong: acquire buffer (iter & 1) each iteration
+with pto.for_(0, 4, step=1) as iter:
+    buf_id = iter & 1
+    pto.get_buf_dyn(pto.Pipe.MTE2, buf_id)
+    # ... DMA load into buf_id ...
+    pto.rls_buf_dyn(pto.Pipe.MTE2, buf_id)
 ```
 
 ---
