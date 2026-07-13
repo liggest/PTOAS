@@ -2844,6 +2844,27 @@ def GetBufOp : PTO_Op<"get_buf"> {
   }];
 }
 
+def GetBufDynOp : PTO_Op<"get_buf_dyn"> {
+  let summary = "Acquire a buffer-id token (dynamic buf-id)";
+  let description = [{
+    Dynamic variant of `pto.get_buf` where the buffer-id is provided as an
+    SSA value (index) instead of a static integer attribute. This enables
+    runtime-computed buf_id patterns such as SIMT ping-pong buffering
+    (e.g. `iter & 1`).
+  }];
+
+  let arguments = (ins
+    PTO_PipeLikeAttr:$op_type,
+    Index:$buf_id,
+    DefaultValuedAttr<I32Attr, "0">:$mode
+  );
+
+  let results = (outs);
+
+  let hasVerifier = 1;
+  let hasCustomAssemblyFormat = 1;
+}
+
 def RlsBufOp : PTO_Op<"rls_buf"> {
   let summary = "Release a buffer-id token for a sync op type (A5)";
   let description = [{
@@ -2868,6 +2889,25 @@ def RlsBufOp : PTO_Op<"rls_buf"> {
     static ::mlir::ParseResult parse(::mlir::OpAsmParser &parser,
                                      ::mlir::OperationState &result);
   }];
+}
+
+def RlsBufDynOp : PTO_Op<"rls_buf_dyn"> {
+  let summary = "Release a buffer-id token (dynamic buf-id)";
+  let description = [{
+    Dynamic variant of `pto.rls_buf` where the buffer-id is provided as an
+    SSA value (index) instead of a static integer attribute.
+  }];
+
+  let arguments = (ins
+    PTO_PipeLikeAttr:$op_type,
+    Index:$buf_id,
+    DefaultValuedAttr<I32Attr, "0">:$mode
+  );
+
+  let results = (outs);
+
+  let hasVerifier = 1;
+  let hasCustomAssemblyFormat = 1;
 }
 
 def SyncSetOp : PTO_Op<"sync.set"> {

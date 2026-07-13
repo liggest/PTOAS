@@ -5416,20 +5416,44 @@ def pipe_barrier(pipe):
 
 
 def get_buf(pipe, buf_id, mode=0):
-    """``pto.get_buf(pipe, buf_id, mode=0)`` – acquire a buffer token."""
-    _pto.GetBufOp(
+    """``pto.get_buf(pipe, buf_id, mode=0)`` – acquire a buffer token.
+
+    ``buf_id`` must be a static integer (0–31). For dynamic buf_id,
+    use :func:`get_buf_dyn`.
+    """
+    _pto.GetBufOp(_pipe_attr(pipe), buf_id, mode=mode)
+
+
+def get_buf_dyn(pipe, buf_id, mode=0):
+    """``pto.get_buf_dyn(pipe, buf_id, mode=0)`` – acquire a buffer token with dynamic buf_id.
+
+    ``buf_id`` must be an SSA value (e.g. ``iter & 1`` for double-buffering).
+    """
+    _pto.GetBufDynOp(
         _pipe_attr(pipe),
-        buf_id,
         mode=mode,
+        buf_id=_coerce_index(buf_id, context="get_buf_dyn(..., buf_id=...)"),
     )
 
 
 def rls_buf(pipe, buf_id, mode=0):
-    """``pto.rls_buf(pipe, buf_id, mode=0)`` – release a buffer token."""
-    _pto.RlsBufOp(
+    """``pto.rls_buf(pipe, buf_id, mode=0)`` – release a buffer token.
+
+    ``buf_id`` must be a static integer (0–31). For dynamic buf_id,
+    use :func:`rls_buf_dyn`.
+    """
+    _pto.RlsBufOp(_pipe_attr(pipe), buf_id, mode=mode)
+
+
+def rls_buf_dyn(pipe, buf_id, mode=0):
+    """``pto.rls_buf_dyn(pipe, buf_id, mode=0)`` – release a buffer token with dynamic buf_id.
+
+    ``buf_id`` must be an SSA value (e.g. ``iter & 1`` for double-buffering).
+    """
+    _pto.RlsBufDynOp(
         _pipe_attr(pipe),
-        buf_id,
         mode=mode,
+        buf_id=_coerce_index(buf_id, context="rls_buf_dyn(..., buf_id=...)"),
     )
 
 

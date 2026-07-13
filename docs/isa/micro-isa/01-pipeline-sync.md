@@ -113,6 +113,32 @@ The `mode` parameter controls how `get_buf` and `rls_buf` interact with pipeline
 
 ---
 
+### `pto.get_buf_dyn` / `pto.rls_buf_dyn`
+
+Dynamic variants of `get_buf`/`rls_buf` where `buf_id` is provided as an SSA value instead of a static integer attribute. This enables runtime-computed buf_id patterns such as SIMT ping-pong buffering.
+
+- **syntax:**
+  - String shorthand: `pto.get_buf_dyn "PIPE_MTE2", %buf_id, 0`
+  - Bracket form: `pto.get_buf_dyn [TLOAD, %buf_id, 0]`
+- **semantics:** Same as `get_buf`/`rls_buf`, but the buffer-id is an `index`-typed SSA value resolved at runtime.
+- **inputs:**
+  - `op_type`: same pipe-like attribute as the static form
+  - `buf_id`: an SSA value of `index` type (e.g. `iter & 1` for ping-pong)
+  - `mode`: same mode parameter (default `0`)
+- **constraints and limitations:** The BufidSync auto-insertion pass only uses the static form (`get_buf`/`rls_buf`). Use the dynamic form (`get_buf_dyn`/`rls_buf_dyn`) when buf_id must be computed at runtime.
+
+Example (SIMT double-buffering with `iter & 1`):
+
+```mlir
+  %c1 = arith.constant 1 : index
+  %buf_id = arith.andi %iter, %c1 : index
+  pto.get_buf_dyn [TLOAD, %buf_id, 0]
+  // ... tload to ubuf slot %buf_id ...
+  pto.rls_buf_dyn [TLOAD, %buf_id, 0]
+```
+
+---
+
 ### `pto.mem_bar`
 
 - **syntax:** `pto.mem_bar "BARRIER_TYPE"`

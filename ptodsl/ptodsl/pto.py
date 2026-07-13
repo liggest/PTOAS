@@ -134,7 +134,7 @@ from ._ops import (             # noqa: F401
     fmin, fmax, fma, convert,
     syncthreads, threadfence, threadfence_block, keep, resume,
     pipe_barrier,
-    get_buf, rls_buf,
+    get_buf, get_buf_dyn, rls_buf, rls_buf_dyn,
     set_cross_flag, wait_cross_flag, set_intra_flag, wait_intra_flag,
     set_flag, wait_flag,
     reserve_buffer, import_reserved_buffer,
