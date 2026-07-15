@@ -14900,6 +14900,11 @@ static bool isInsideSectionVector(Operation *op) {
   return op->getParentOfType<pto::SectionVectorOp>() != nullptr;
 }
 
+static bool isInsideTileOpHelper(Operation *op) {
+  auto funcOp = op->getParentOfType<func::FuncOp>();
+  return funcOp && funcOp->hasAttr("pto.tileop.helper");
+}
+
 static std::optional<FunctionKernelKind>
 getEnclosingFunctionKernelKind(Operation *op) {
   auto funcOp = op->getParentOfType<func::FuncOp>();
@@ -14917,7 +14922,7 @@ getEnclosingFunctionKernelKind(Operation *op) {
 
 static bool isInsideSectionOrAttributedKernel(Operation *op) {
   return isInsideSectionCube(op) || isInsideSectionVector(op) ||
-         getEnclosingFunctionKernelKind(op).has_value();
+         isInsideTileOpHelper(op) || getEnclosingFunctionKernelKind(op).has_value();
 }
 
 static LogicalResult verifySplitAttr(Operation *op, int64_t split) {
@@ -14929,6 +14934,8 @@ static LogicalResult verifySplitAttr(Operation *op, int64_t split) {
 static LogicalResult verifyFrontendKernelKind(Operation *op,
                                               FunctionKernelKind expected,
                                               StringRef kernelName) {
+  if (isInsideTileOpHelper(op))
+    return success();
   if (isInsideSectionCube(op)) {
     if (expected == FunctionKernelKind::Cube)
       return success();

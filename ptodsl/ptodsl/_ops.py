@@ -2029,36 +2029,39 @@ def vrsqrt(inp, mask):
 
 
 def vcgmax(v, mask):
-    """``pto.vcgmax`` – group maximum reduction, surfaced as the lowest-lane scalar."""
+    """``pto.vcgmax`` – group maximum reduction."""
     _reject_low_precision_vreg_operands(v, context="pto.vcgmax(...)")
-    reduced = _pto.VcgmaxOp(
-        unwrap_surface_value(v).type,
-        unwrap_surface_value(v),
-        unwrap_surface_value(mask),
-    ).result
-    return _extract_lowest_lane_scalar(reduced, mask)
+    return wrap_surface_value(
+        _pto.VcgmaxOp(
+            unwrap_surface_value(v).type,
+            unwrap_surface_value(v),
+            unwrap_surface_value(mask),
+        ).result
+    )
 
 
 def vcgadd(v, mask):
-    """``pto.vcgadd`` – group sum reduction, surfaced as the lowest-lane scalar."""
+    """``pto.vcgadd`` – group sum reduction."""
     _reject_low_precision_vreg_operands(v, context="pto.vcgadd(...)")
-    reduced = _pto.VcgaddOp(
-        unwrap_surface_value(v).type,
-        unwrap_surface_value(v),
-        unwrap_surface_value(mask),
-    ).result
-    return _extract_lowest_lane_scalar(reduced, mask)
+    return wrap_surface_value(
+        _pto.VcgaddOp(
+            unwrap_surface_value(v).type,
+            unwrap_surface_value(v),
+            unwrap_surface_value(mask),
+        ).result
+    )
 
 
 def vcgmin(v, mask):
-    """``pto.vcgmin`` – group minimum reduction, surfaced as the lowest-lane scalar."""
+    """``pto.vcgmin`` – group minimum reduction."""
     _reject_low_precision_vreg_operands(v, context="pto.vcgmin(...)")
-    reduced = _pto.VcgminOp(
-        unwrap_surface_value(v).type,
-        unwrap_surface_value(v),
-        unwrap_surface_value(mask),
-    ).result
-    return _extract_lowest_lane_scalar(reduced, mask)
+    return wrap_surface_value(
+        _pto.VcgminOp(
+            unwrap_surface_value(v).type,
+            unwrap_surface_value(v),
+            unwrap_surface_value(mask),
+        ).result
+    )
 
 
 def vcpadd(v, mask):
@@ -3912,14 +3915,6 @@ def _reject_low_precision_vreg_operands(*values, context: str) -> None:
         _reject_low_precision_vreg(value, context=context)
 
 
-def _extract_lowest_lane_scalar(vector_value, mask):
-    lanes, elem_type = _infer_vreg_metadata(vector_value)
-    tmp_tile = alloc_tile(shape=[1, lanes], dtype=elem_type, valid_shape=[1, 1])
-    vsts(vector_value, tmp_tile.as_ptr(), _index_zero(), mask, dist="1PT_B32")
-    from . import scalar as _scalar
-    return _scalar.load(tmp_tile[0, 0])
-
-
 def _element_bytewidth(elem_type):
     if F32Type.isinstance(elem_type):
         return 4
@@ -5235,7 +5230,7 @@ def simt_launch(body, *args, dims=(1, 1, 1), **kwargs):
     if role_value != "simt":
         raise TypeError("pto.simt_launch(body, ...) expects body to be a @pto.simt-decorated function")
 
-    body._validate_invocation(*args, **kwargs)
+    body._validate_simt_launch_invocation(*args, **kwargs)
 
     from ._tracing.active import require_active_session
     session = require_active_session("pto.simt_launch")

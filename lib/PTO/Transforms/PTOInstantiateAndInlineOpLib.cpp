@@ -50,7 +50,8 @@ static bool isTilelangInlineProcFunc(func::FuncOp fn) {
 }
 
 static bool isPTODSLSubkernelHelperFunc(func::FuncOp fn) {
-  return fn->hasAttr("pto.ptodsl.subkernel_helper");
+  return fn->hasAttr("pto.ptodsl.subkernel_helper") ||
+         fn->hasAttr("pto.tileop.helper");
 }
 
 static bool isTilelangTemplateFunc(func::FuncOp fn) {

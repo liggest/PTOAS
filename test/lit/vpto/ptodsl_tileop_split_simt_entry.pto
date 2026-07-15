@@ -6,23 +6,29 @@
 // INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 // See LICENSE in the root of the software repository for the full text of the License.
 
-// RUN: ptoas --pto-arch=a5 --emit-pto-ir %s -o - | FileCheck %s
+// RUN: ptoas --pto-arch=a5 --pto-backend=vpto --emit-vpto %s -o - | FileCheck %s
+
+// CHECK: module attributes {{.*}}pto.kernel_kind = #pto.kernel_kind<vector>
+// CHECK: func.func @vector_kernel
+// CHECK: func.func @vector_simt() attributes {pto.simt_entry}
+// CHECK: module attributes {{.*}}pto.kernel_kind = #pto.kernel_kind<cube>
+// CHECK: func.func @vector_kernel
+// CHECK-NOT: func.func @vector_simt()
 
 module attributes {pto.target_arch = "a5"} {
-  func.func public @vec_helper() {
+  func.func @vector_kernel() attributes {pto.kernel} {
+    %dim_x = arith.constant 64 : i32
+    %dim_y = arith.constant 1 : i32
+    %dim_z = arith.constant 1 : i32
     pto.section.vector {
+      pto.simt_launch @vector_simt<<<%dim_x, %dim_y, %dim_z>>>() : () -> ()
     }
-    return
-  }
-
-  func.func private @cube_helper() {
     pto.section.cube {
     }
     return
   }
-}
 
-// CHECK-LABEL: func.func public @vec_helper()
-// CHECK: pto.section.vector {
-// CHECK-LABEL: func.func private @cube_helper()
-// CHECK: pto.section.cube {
+  func.func @vector_simt() attributes {pto.simt_entry} {
+    return
+  }
+}

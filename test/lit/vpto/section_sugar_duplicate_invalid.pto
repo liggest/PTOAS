@@ -1,4 +1,4 @@
-// RUN: ! ptoas --pto-arch=a5 --pto-backend=vpto --emit-vpto %s -o - 2>&1 | FileCheck %s
+// RUN: ptoas --pto-arch=a5 --emit-pto-ir %s -o - | FileCheck %s
 
 module attributes {pto.target_arch = "a5"} {
   func.func @duplicate_section_kernel() attributes {pto.kernel} {
@@ -10,5 +10,7 @@ module attributes {pto.target_arch = "a5"} {
   }
 }
 
-// CHECK: contains more than one pto.section.vector
-
+// Multiple same-kind sections are legal after tileop materialization.
+// CHECK-LABEL: func.func @duplicate_section_kernel
+// CHECK: pto.section.vector {
+// CHECK: pto.section.vector {

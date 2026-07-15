@@ -977,7 +977,8 @@ static bool isTileViewSemantics(StringAttr viewSemantics) {
 }
 
 static bool isPTODSLSubkernelHelper(func::FuncOp func) {
-  return func->hasAttr("pto.ptodsl.subkernel_helper");
+  return func->hasAttr("pto.ptodsl.subkernel_helper") ||
+         func->hasAttr("pto.tileop.helper");
 }
 
 static std::optional<SmallVector<Type>>

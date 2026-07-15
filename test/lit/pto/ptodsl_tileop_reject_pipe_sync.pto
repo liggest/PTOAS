@@ -6,23 +6,12 @@
 // INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 // See LICENSE in the root of the software repository for the full text of the License.
 
-// RUN: ptoas --pto-arch=a5 --emit-pto-ir %s -o - | FileCheck %s
+// RUN: not ptoas --pto-arch=a5 --emit-pto-ir %s 2>&1 | FileCheck %s
 
+// CHECK: error: tileop helpers must not contain pipe synchronization
 module attributes {pto.target_arch = "a5"} {
-  func.func public @vec_helper() {
-    pto.section.vector {
-    }
-    return
-  }
-
-  func.func private @cube_helper() {
-    pto.section.cube {
-    }
+  func.func private @bad_tileop() attributes {pto.tileop.helper} {
+    pto.barrier <PIPE_V>
     return
   }
 }
-
-// CHECK-LABEL: func.func public @vec_helper()
-// CHECK: pto.section.vector {
-// CHECK-LABEL: func.func private @cube_helper()
-// CHECK: pto.section.cube {

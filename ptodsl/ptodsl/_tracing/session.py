@@ -13,10 +13,19 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import hashlib
 
-from .._diagnostics import inline_subkernel_value_escape_error, subkernel_kernel_kind_mismatch_error
+from .._diagnostics import (
+    inline_subkernel_value_escape_error,
+    inline_tileop_capture_type_error,
+    subkernel_kernel_kind_mismatch_error,
+)
 from .._kernel_signature import RuntimeScalarParameterSpec
 from .._ops import const
-from .._surface_values import unwrap_surface_value, wrap_like_surface_value
+from .._surface_values import (
+    is_runtime_scalar_ir_type,
+    is_tile_ir_type,
+    unwrap_surface_value,
+    wrap_like_surface_value,
+)
 from .control_flow import (
     build_carry_loop_frame,
     finish_carry_loop_frame,
@@ -286,6 +295,8 @@ class TraceSession:
                 )
         if role == "simt":
             attrs.append(("pto.simt_entry", UnitAttr.get()))
+        if role == "tileop":
+            attrs.append(("pto.tileop.helper", UnitAttr.get()))
         return tuple(attrs)
 
     def _emit_simt_helper_launch_metadata(self) -> None:
@@ -436,6 +447,12 @@ class TraceSession:
                 if replacement is not None:
                     operands[operand_index] = replacement
 
+    def _validate_inline_tileop_captures(self, captures) -> None:
+        for position, value in enumerate(captures, start=1):
+            if is_tile_ir_type(value.type) or is_runtime_scalar_ir_type(value.type):
+                continue
+            raise inline_tileop_capture_type_error(position, str(value.type))
+
     def _outline_inline_subkernel(self, outline_frame: InlineSubkernelOutlineFrame) -> None:
         role = outline_frame.trace_frame.role
         section_policy = self._subkernel_section_policy(role)
@@ -446,6 +463,8 @@ class TraceSession:
 
         defined_values = self._collect_defined_values(root_ops)
         captures = self._collect_capture_values(root_ops)
+        if role == "tileop":
+            self._validate_inline_tileop_captures(captures)
         helper_spec = HelperFunctionSpec(
             symbol_name=outline_frame.helper_symbol_name,
             arg_types=tuple(value.type for value in captures),
@@ -526,6 +545,7 @@ class TraceSession:
                 func.ReturnOp([])
 
         func.CallOp(helper_fn, [unwrap_surface_value(arg) for arg in arg_templates])
+        return None
 
     def begin_carry_loop(self, start, stop, step, state_items):
         """Materialize one authored ``pto.for_(...).carry(...)`` loop body."""
@@ -677,6 +697,13 @@ class TraceSession:
 
     def lower_kernel_module_call(self, kernel_handle, *args, **kwargs):
         """Lower one ``@pto.jit(entry=False)`` kernel-module call in the active trace."""
+        outer_frame = self.current_subkernel
+        if outer_frame is not None and outer_frame.role == "tileop":
+            raise RuntimeError(
+                "@pto.tileop helpers cannot call @pto.jit(entry=False) kernel modules. "
+                "Keep orchestration in the enclosing @pto.jit kernel; a tileop may only "
+                "launch explicit @pto.simt helpers."
+            )
         if kwargs:
             raise TypeError("@pto.jit(entry=False) kernel module calls do not support keyword arguments yet")
 
@@ -769,6 +796,8 @@ class TraceSession:
             self._attach_ptodsl_logical_name_attr(helper, spec.symbol_name)
             for attr_name, attr_value in spec.attributes:
                 helper.attributes[attr_name] = attr_value
+            if any(attr_name == "pto.tileop.helper" for attr_name, _ in spec.attributes):
+                helper.attributes["sym_visibility"] = StringAttr.get("private")
         self._helpers[cache_key] = helper
         return helper, True
 
