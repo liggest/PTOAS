@@ -194,7 +194,7 @@ def gemm_block(
 
 Double-buffering is a common optimization in NPU kernels: while one buffer is being computed on, the other is being loaded with the next block of data. The `get_buf` / `rls_buf` pair coordinates buffer ownership between pipelines.
 
-`buf_id` accepts both a **static integer** (0–31) and a **runtime index-like SSA value** (e.g., `iter & 1` for ping-pong buffering). The DSL automatically selects the appropriate IR form (`pto.get_buf` for static, `pto.get_buf_dyn` for dynamic).
+`buf_id` accepts both a **static integer** (0–31) and a **runtime index-like PTO scalar** (e.g., `iter & 1` for ping-pong buffering). The DSL automatically selects the appropriate IR form (`pto.get_buf` for static, `pto.get_buf_dyn` for dynamic).
 
 The `pipe` and `mode` parameters are identical regardless of whether `buf_id` is static or dynamic.
 
@@ -207,7 +207,7 @@ The `pipe` and `mode` parameters are identical regardless of whether `buf_id` is
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `pipe` | `Pipe` | Pipeline identifier of the acquiring pipeline |
-| `buf_id` | `int` or index-like SSA value | Buffer identifier — static integer (0–31) or runtime-computed index (e.g., `iter & 1`) |
+| `buf_id` | `int` or index-like PTO scalar | Buffer identifier — static integer (0–31) or runtime-computed index (e.g., `iter & 1`) |
 | `mode` | `int` | Acquisition mode (default 0) |
 
 **Returns**: None (side-effect operation).
@@ -221,7 +221,7 @@ The `pipe` and `mode` parameters are identical regardless of whether `buf_id` is
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `pipe` | `Pipe` | Pipeline identifier of the releasing pipeline |
-| `buf_id` | `int` or index-like SSA value | Buffer identifier matching the corresponding `get_buf` |
+| `buf_id` | `int` or index-like PTO scalar | Buffer identifier matching the corresponding `get_buf` |
 | `mode` | `int` | Release mode (default 0) |
 
 **Returns**: None (side-effect operation).
@@ -249,7 +249,7 @@ pto.rls_buf(pto.Pipe.MTE2, 0, 0)
 ### Dynamic double-buffering (ping-pong) example
 
 When the buffer-id toggles between 0 and 1 per loop iteration, compute the
-buf-id from the loop variable. Pass the SSA value directly — the DSL
+buf-id from the loop variable. Pass the index value directly — the DSL
 dispatches to the dynamic IR form automatically:
 
 <!-- ptodsl-doc-test: {"mode":"compile_fragment","fixture":"sync_ops.basic","symbol":"sync_ops_basic_probe","compile":{}} -->

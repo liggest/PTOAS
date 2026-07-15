@@ -5665,7 +5665,7 @@ def pipe_barrier(pipe):
 def get_buf(pipe, buf_id, mode=0):
     """``pto.get_buf(pipe, buf_id, mode=0)`` – acquire a buffer token.
 
-    ``buf_id`` accepts a static integer (0–31) or a runtime index-like SSA value.
+    ``buf_id`` accepts a static integer (0–31) or a runtime index-like PTO scalar.
     """
     buf_id_op, is_static = _buf_id_operand(
         buf_id,
@@ -5684,7 +5684,7 @@ def get_buf(pipe, buf_id, mode=0):
 def rls_buf(pipe, buf_id, mode=0):
     """``pto.rls_buf(pipe, buf_id, mode=0)`` – release a buffer token.
 
-    ``buf_id`` accepts a static integer (0–31) or a runtime index-like SSA value.
+    ``buf_id`` accepts a static integer (0–31) or a runtime index-like PTO scalar.
     """
     buf_id_op, is_static = _buf_id_operand(
         buf_id,
