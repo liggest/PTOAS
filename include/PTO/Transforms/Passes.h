@@ -44,7 +44,6 @@ std::unique_ptr<Pass> createPTOMaterializeTileOpSectionsPass();
 std::unique_ptr<Pass> createVPTOSplitCVModulePass();
 std::unique_ptr<Pass> createVPTONormalizeContainerPass();
 std::unique_ptr<Pass> createPTOVerifyTFreePass();
-std::unique_ptr<Pass> createPTOVerifySubkernelPipeContractPass();
 
 // Creates a pass for ...
 std::unique_ptr<Pass> createPTOInsertSyncPass();

@@ -529,4 +529,4 @@ Use this order when debugging mixed compilation:
 | `pto.aicore` | `func.func` | Legacy entry marker accepted for compatibility. |
 | `pto.internal.non_entry` | `func.func` | Frontend/helper metadata; not used for current entry inference. |
 | `pto.ptodsl.logical_name` | `func.func` | Source-level logical name used when assembling wrappers and peer references. |
-| `pto.ptodsl.subkernel_helper` | `func.func` | Frontend helper classification: `simd`, `cube`, or `simt`. |
+| `pto.tileop.helper` | `func.func` | PTODSL pure single-core TileOp helper; PTOAS infers its Vector or Cube kind. |

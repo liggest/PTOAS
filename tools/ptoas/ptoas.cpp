@@ -3061,8 +3061,6 @@ int mlir::pto::compilePTOASModule(
   // `pto.slot_marker` ops and can keep multi-buffer slot identity (const slot
   // K vs slot K' or dynamic slot) for the alias / event-id analysis.
   // solvers, while BufidSync is A5-only get_buf/rls_buf synchronization.
-  pm.addNestedPass<mlir::func::FuncOp>(
-      pto::createPTOVerifySubkernelPipeContractPass());
   if (enableInsertSync)
     pm.addNestedPass<mlir::func::FuncOp>(pto::createPTOInsertSyncPass());
   else if (enableBufidSync) {

@@ -222,48 +222,35 @@ getMemrefSubViewBaseAddresses(memref::SubViewOp op, MemRefType sourceType,
 
 namespace {
 
-static func::FuncOp lookupPTODSLSubkernelHelper(func::CallOp callOp) {
+static func::FuncOp lookupTileOpHelper(func::CallOp callOp) {
   auto module = callOp->getParentOfType<ModuleOp>();
   if (!module || callOp.getCallee().empty())
     return {};
   auto callee = module.lookupSymbol<func::FuncOp>(callOp.getCallee());
   if (!callee)
     return {};
-  if (!callee->hasAttr("pto.ptodsl.subkernel_helper") &&
-      !callee->hasAttr("pto.tileop.helper"))
+  if (!callee->hasAttr("pto.tileop.helper"))
     return {};
   return callee;
 }
 
 static std::optional<pto::PipelineType>
-getPTODSLSubkernelHelperPipe(func::FuncOp callee) {
-  if (callee->hasAttr("pto.tileop.helper")) {
-    auto kind = callee->getAttrOfType<mlir::StringAttr>("pto.tileop.kind");
-    if (!kind)
-      return std::nullopt;
-    return llvm::StringSwitch<std::optional<pto::PipelineType>>(kind.getValue())
-        .Case("cube", pto::PipelineType::PIPE_M)
-        .Case("vector", pto::PipelineType::PIPE_V)
-        .Default(std::nullopt);
-  }
-  auto roleAttr =
-      callee->getAttrOfType<mlir::StringAttr>("pto.ptodsl.subkernel_helper");
-  if (!roleAttr)
+getTileOpHelperPipe(func::FuncOp callee) {
+  auto kind = callee->getAttrOfType<mlir::StringAttr>("pto.tileop.kind");
+  if (!kind)
     return std::nullopt;
-
-  return llvm::StringSwitch<std::optional<pto::PipelineType>>(
-             roleAttr.getValue())
+  return llvm::StringSwitch<std::optional<pto::PipelineType>>(kind.getValue())
       .Case("cube", pto::PipelineType::PIPE_M)
-      .Case("simd", pto::PipelineType::PIPE_V)
+      .Case("vector", pto::PipelineType::PIPE_V)
       .Default(std::nullopt);
 }
 
-static bool isPTODSLSubkernelMemoryOperand(Type type) {
+static bool isTileOpMemoryOperand(Type type) {
   return isa<MemRefType, pto::PtrType, pto::TileBufType, pto::TensorViewType,
              pto::PartitionTensorViewType>(type);
 }
 
-static pto::TCoreType getPTODSLSubkernelHelperCoreType(pto::PipelineType pipe) {
+static pto::TCoreType getTileOpHelperCoreType(pto::PipelineType pipe) {
   return pipe == pto::PipelineType::PIPE_M ? pto::TCoreType::CUBE
                                            : pto::TCoreType::VECTOR;
 }
@@ -455,7 +442,7 @@ void PTOIRTranslator::RecursionIR(Region *region) {
     } else if (getSyncMacroModel(op)) {
       UpdateMacroOpInfo(op);
     } else if (auto callOp = dyn_cast<func::CallOp>(op)) {
-      UpdatePTODSLSubkernelCallInfo(callOp);
+      UpdateTileOpCallInfo(callOp);
     } else if (isa<pto::OpPipeInterface>(op)) {
       // --- Case D: 带有 OpPipeInterface 的计算/搬运指令 ---
       UpdatePTOOpInfo(op);
@@ -768,23 +755,22 @@ void PTOIRTranslator::UpdateMacroOpInfo(Operation *op) {
   }
 }
 
-void PTOIRTranslator::UpdatePTODSLSubkernelCallInfo(func::CallOp callOp) {
-  func::FuncOp callee = lookupPTODSLSubkernelHelper(callOp);
+void PTOIRTranslator::UpdateTileOpCallInfo(func::CallOp callOp) {
+  func::FuncOp callee = lookupTileOpHelper(callOp);
   if (!callee)
     return;
 
-  std::optional<pto::PipelineType> pipe = getPTODSLSubkernelHelperPipe(callee);
+  std::optional<pto::PipelineType> pipe = getTileOpHelperPipe(callee);
   if (!pipe || *pipe == pto::PipelineType::PIPE_UNASSIGNED)
     return;
 
   SmallVector<const BaseMemInfo *> defVec;
   SmallVector<const BaseMemInfo *> useVec;
   auto tileEffects = callee->getAttrOfType<ArrayAttr>(kTileOpEffectsAttr);
-  bool hasPreciseTileEffects = callee->hasAttr("pto.tileop.helper") &&
-                               tileEffects &&
+  bool hasPreciseTileEffects = tileEffects &&
                                tileEffects.size() == callOp.getNumOperands();
   for (auto [operandIndex, operand] : llvm::enumerate(callOp.getOperands())) {
-    if (!isPTODSLSubkernelMemoryOperand(operand.getType()))
+    if (!isTileOpMemoryOperand(operand.getType()))
       continue;
 
     StringRef effect = "readwrite";
@@ -805,7 +791,7 @@ void PTOIRTranslator::UpdatePTODSLSubkernelCallInfo(func::CallOp callOp) {
   auto compoundElement = std::make_unique<CompoundInstanceElement>(
       index, defVec, useVec, *pipe, callOp->getName());
   compoundElement->elementOp = callOp;
-  compoundElement->compoundCoreType = getPTODSLSubkernelHelperCoreType(*pipe);
+  compoundElement->compoundCoreType = getTileOpHelperCoreType(*pipe);
   syncIR_.emplace_back(std::move(compoundElement));
   index++;
 }

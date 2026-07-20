@@ -4567,8 +4567,8 @@ def main() -> None:
         "@pto.simt helper should materialize exactly one reusable pto.simt_entry function",
     )
     expect(
-        "pto.ptodsl.subkernel_helper = \"simt\"" not in simt_text,
-        "@pto.simt helpers should no longer be modeled as PTODSL subkernel helpers",
+        "pto.tileop.helper" not in simt_text,
+        "@pto.simt helpers should not be modeled as TileOp helpers",
     )
     expect("pto.get_tid_x" in simt_text, "SIMT helper body should contain pto.get_tid_x")
     expect("pto.get_tid_y" in simt_text, "SIMT helper body should contain pto.get_tid_y")

@@ -282,17 +282,6 @@ class TraceSession:
 
     def _subkernel_helper_attributes(self, role: str) -> tuple[tuple[str, object], ...]:
         attrs: list[tuple[str, object]] = []
-        if role in {"simd", "cube"}:
-            attrs.append(("pto.ptodsl.subkernel_helper", StringAttr.get(role)))
-            if self._subkernel_section_policy(role) == "function_kind":
-                attrs.append(
-                    (
-                        "pto.kernel_kind",
-                        Attribute.parse(
-                            f"#pto.kernel_kind<{self._subkernel_role_kernel_kind(role)}>"
-                        ),
-                    )
-                )
         if role == "simt":
             attrs.append(("pto.simt_entry", UnitAttr.get()))
         if role == "tileop":
